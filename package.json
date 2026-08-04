@@ -1,0 +1,23 @@
+{
+  "name": "scholarbase",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ScholarBase - previous year question papers, notes, live study rooms and AI Q&A for an autonomous university",
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev:backend": "pnpm --filter @scholarbase/backend start:dev",
+    "dev:frontend": "pnpm --filter @scholarbase/frontend dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "argon2",
+      "esbuild",
+      "prisma"
+    ]
+  }
+}

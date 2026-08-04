@@ -1,0 +1,23 @@
+{
+  "name": "@scholarbase/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/cjs/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
+    }
+  },
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "tsc -p tsconfig.cjs.json && tsc -p tsconfig.esm.json && node scripts/write-esm-package-json.js",
+    "dev": "tsc -p tsconfig.cjs.json --watch"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  }
+}

@@ -1,0 +1,28 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage/
+.turbo/
+pnpm-lock.yaml.bak
+
+# Prisma
+backend/prisma/migrations/**/migration_lock.toml.bak
+
+# Python
+rag-service/.venv/
+rag-service/__pycache__/
+rag-service/**/__pycache__/
+*.pyc
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Docker volumes (if bind-mounted locally)
+infra/data/

@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  student
+  admin
+}
+
+enum UploadStatus {
+  pending
+  ready
+  failed
+}
+
+enum IngestionStatus {
+  not_ingested
+  queued
+  ingested
+  failed
+}
+
+model User {
+  id              String    @id @default(uuid())
+  email           String    @unique @db.Citext
+  passwordHash    String    @map("password_hash")
+  fullName        String    @map("full_name")
+  role            UserRole  @default(student)
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  refreshTokens     RefreshToken[]
+  uploadedPapers    QuestionPaper[]    @relation("PaperUploader")
+  uploadedNotes     Note[]             @relation("NoteUploader")
+  studyRooms        StudyRoom[]        @relation("StudyRoomCreator")
+  studyRoomMessages StudyRoomMessage[] @relation("StudyRoomMessageSender")
+
+  @@map("users")
+}
+
+model AllowedEmailDomain {
+  id     String @id @default(uuid())
+  domain String @unique
+
+  @@map("allowed_email_domains")
+}
+
+model RefreshToken {
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
+  tokenHash        String    @map("token_hash")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  replacedByTokenId String?  @map("replaced_by_token_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model YearLevel {
+  id         String @id @default(uuid())
+  yearNumber Int    @unique @map("year_number")
+  label      String
+
+  subjects Subject[]
+
+  @@map("year_levels")
+}
+
+model Subject {
+  id          String  @id @default(uuid())
+  yearLevelId String  @map("year_level_id")
+  code        String
+  name        String
+  department  String?
+  semester    Int?
+  credits     Int?
+
+  yearLevel     YearLevel       @relation(fields: [yearLevelId], references: [id], onDelete: Cascade)
+  questionPapers QuestionPaper[]
+  notes         Note[]
+
+  @@unique([yearLevelId, code])
+  @@map("subjects")
+}
+
+model ExamType {
+  id   String @id @default(uuid())
+  name String @unique
+
+  questionPapers QuestionPaper[]
+
+  @@map("exam_types")
+}
+
+model QuestionPaper {
+  id               String          @id @default(uuid())
+  subjectId        String          @map("subject_id")
+  examTypeId       String          @map("exam_type_id")
+  academicYear     Int             @map("academic_year")
+  fileKey          String          @map("file_key")
+  fileName         String          @map("file_name")
+  fileSizeBytes    Int             @map("file_size_bytes")
+  mimeType         String          @map("mime_type")
+  checksum         String
+  uploadedById     String          @map("uploaded_by")
+  uploadStatus     UploadStatus    @default(pending) @map("upload_status")
+  ingestionStatus  IngestionStatus @default(not_ingested) @map("ingestion_status")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  subject    Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  examType   ExamType @relation(fields: [examTypeId], references: [id])
+  uploadedBy User     @relation("PaperUploader", fields: [uploadedById], references: [id])
+
+  @@unique([checksum])
+  @@index([subjectId, academicYear])
+  @@map("question_papers")
+}
+
+model StudyRoom {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdById String   @map("created_by")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy User               @relation("StudyRoomCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  messages  StudyRoomMessage[]
+
+  @@index([isActive, createdAt])
+  @@map("study_rooms")
+}
+
+model StudyRoomMessage {
+  id        String   @id @default(uuid())
+  roomId    String   @map("room_id")
+  senderId  String   @map("sender_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  room   StudyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender User      @relation("StudyRoomMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, createdAt])
+  @@map("study_room_messages")
+}
+
+model Note {
+  id            String       @id @default(uuid())
+  subjectId     String       @map("subject_id")
+  title         String
+  unitTopic     String?      @map("unit_topic")
+  fileKey       String       @map("file_key")
+  fileName      String       @map("file_name")
+  fileSizeBytes Int          @map("file_size_bytes")
+  mimeType      String       @map("mime_type")
+  uploadedById  String       @map("uploaded_by")
+  uploadStatus  UploadStatus @default(pending) @map("upload_status")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  subject    Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  uploadedBy User    @relation("NoteUploader", fields: [uploadedById], references: [id])
+
+  @@index([subjectId])
+  @@map("notes")
+}
