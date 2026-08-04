@@ -61,39 +61,48 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
   /**
    * The global JwtAuthGuard only covers HTTP, so the socket handshake is
    * authenticated here instead: no valid access token, no connection.
+   *
+   * This runs as connection middleware rather than in handleConnection because
+   * middleware is guaranteed to finish before any packet from the socket is
+   * dispatched. Authenticating in handleConnection races against the client,
+   * which can emit `room:join` the instant it sees `connect` — and then the
+   * handler runs with `socket.data.user` still unset.
    */
-  async handleConnection(client: Socket): Promise<void> {
-    try {
-      const token = this.extractToken(client);
-      if (!token) {
-        throw new Error("Missing access token");
+  afterInit(server: Server): void {
+    server.use(async (socket, next) => {
+      try {
+        const token = this.extractToken(socket);
+        if (!token) {
+          throw new Error("Missing access token");
+        }
+
+        const payload = await this.jwt.verifyAsync<AuthenticatedUser>(token, {
+          secret: this.config.getOrThrow<string>("JWT_ACCESS_SECRET"),
+        });
+
+        // fullName isn't in the JWT, and it's needed on every message and tile.
+        const user = await this.prisma.user.findUnique({
+          where: { id: payload.sub },
+          select: { id: true, email: true, fullName: true, role: true },
+        });
+
+        if (!user) {
+          throw new Error("User no longer exists");
+        }
+
+        socket.data.user = {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          role: user.role === "admin" ? UserRole.ADMIN : UserRole.STUDENT,
+        } satisfies SocketUser;
+
+        next();
+      } catch (error) {
+        this.logger.warn(`Rejected socket ${socket.id}: ${(error as Error).message}`);
+        next(new Error("Authentication failed"));
       }
-
-      const payload = await this.jwt.verifyAsync<AuthenticatedUser>(token, {
-        secret: this.config.getOrThrow<string>("JWT_ACCESS_SECRET"),
-      });
-
-      // fullName isn't in the JWT, and it's needed on every message and tile.
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.sub },
-        select: { id: true, email: true, fullName: true, role: true },
-      });
-
-      if (!user) {
-        throw new Error("User no longer exists");
-      }
-
-      client.data.user = {
-        id: user.id,
-        email: user.email,
-        fullName: user.fullName,
-        role: user.role === "admin" ? UserRole.ADMIN : UserRole.STUDENT,
-      } satisfies SocketUser;
-    } catch (error) {
-      this.logger.warn(`Rejected socket ${client.id}: ${(error as Error).message}`);
-      client.emit(StudyRoomServerEvent.ERROR, { message: "Authentication failed" });
-      client.disconnect(true);
-    }
+    });
   }
 
   handleDisconnect(client: Socket): void {

@@ -30,6 +30,14 @@ export function AppLayout() {
                 {dept.label}
               </Link>
             ))}
+            {user && (
+              <Link
+                to="/study-rooms"
+                className="rounded-pill px-4 py-1.5 text-sm font-semibold text-neutral-600 hover:bg-primary-50 hover:text-primary-700"
+              >
+                Study Rooms
+              </Link>
+            )}
             {isAdmin && (
               <Link
                 to="/admin"

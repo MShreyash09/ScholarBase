@@ -5,16 +5,18 @@ autonomous university. Fully open-source stack: PostgreSQL + pgvector, MinIO, Re
 phase 3 onward), NestJS (TypeScript), React, and a Python/FastAPI RAG service (phase 4).
 
 See [`docs/adr` and the architecture plan] for the full design. This repo currently implements
-**phase 1 (question papers) and phase 2 (notes)**, with the auth/access model already in place
-for later phases.
+**phase 1 (question papers), phase 2 (notes), and phase 3 (live study rooms)**.
 
 ## Access model
 
 - **Public**: browse and download question papers, no account needed.
-- **Logged in (student)**: also download notes, and (from phase 3/4) join live study rooms and
-  ask the AI assistant.
-- **Admin**: manages year levels, subjects, exam types, and uploads papers/notes. Admin accounts
-  are never created via public signup — see "Seed the first admin" below.
+- **Logged in (student)**: also download notes, and open/join live study rooms (chat + audio/video).
+- **Admin**: everything a student can do, plus managing year levels, subjects, exam types, and
+  uploading papers/notes, and closing anyone's study room. Admin accounts are never created via
+  public signup — see "Seed the first admin" below.
+
+Signup is restricted to the email domains listed in `ALLOWED_EMAIL_DOMAINS`; `seed:admin` writes
+those into the `allowed_email_domains` table, so **it must be run before anyone can register**.
 
 ## Prerequisites
 
@@ -62,17 +64,38 @@ exam type, and upload a question paper or notes file. Everything else (browsing,
 visible immediately without logging in, except notes downloads which require any logged-in
 account.
 
+## Study rooms
+
+Any logged-in user can open a room at `/study-rooms` and join it. A room has two layers:
+
+- **Chat** — a socket.io gateway on the `/study-rooms` namespace (`backend/src/modules/study-rooms`).
+  Messages are persisted, and the last 50 are replayed when you join. Presence and typing
+  indicators are in-memory only.
+- **Audio & video** — press *Join audio & video*. Peers connect in a **mesh** of WebRTC
+  connections; the server only relays SDP offers/answers and ICE candidates and never sees media.
+
+Notes on the media layer:
+
+- `getUserMedia` only works on `localhost` or over HTTPS. In production that means the frontend
+  must be served over TLS.
+- Mesh topology is fine for the handful of people a study room holds. A large room would need an
+  SFU instead — every participant currently uploads one stream per peer.
+- Set `VITE_ICE_SERVERS` (JSON `RTCIceServer[]`) to add a TURN server. The default is a public
+  STUN server, which fails for peers behind symmetric NATs.
+- Presence lives in a single process's memory, so running more than one backend replica needs the
+  socket.io Redis adapter plus a shared presence store.
+
 ## Repo layout
 
 ```
 frontend/            React + Vite + TS, Tailwind themed to match mmcoe.edu.in (maroon/Poppins/pill buttons)
-backend/              NestJS API: auth, year-levels, subjects, exam-types, papers, notes
+backend/              NestJS API: auth, year-levels, subjects, exam-types, papers, notes, study-rooms
 packages/shared-types/  DTOs + enums shared by frontend and backend (dual CJS/ESM build)
 infra/                docker-compose.yml (local dev infra), docker-compose.prod.yml (Traefik + built images)
 ```
 
-`rag-service/` (Python, phase 4) and the live-study-room WebSocket layer (phase 3) aren't built
-yet — see the architecture plan for how they slot in without needing infra changes to phases 1–2.
+`rag-service/` (Python, phase 4) isn't built yet — see the architecture plan for how it slots in
+without needing infra changes to the earlier phases.
 
 ## Production
 
