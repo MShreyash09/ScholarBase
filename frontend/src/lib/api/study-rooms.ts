@@ -1,12 +1,20 @@
-import type {
-  CreateStudyRoomRequestDto,
-  StudyRoomDto,
-  StudyRoomMessageDto,
+import {
+  STUDY_ROOM_INVITE_PATH,
+  type CreateStudyRoomRequestDto,
+  type StudyRoomDto,
+  type StudyRoomMessageDto,
 } from "@scholarbase/shared-types";
 import { apiClient } from "../api-client";
 
+/** Builds the shareable link for a room the current user is allowed to invite to. */
+export function buildInviteUrl(inviteCode: string): string {
+  return `${window.location.origin}${STUDY_ROOM_INVITE_PATH}/${inviteCode}`;
+}
+
 export const studyRoomsApi = {
   list: () => apiClient.get<StudyRoomDto[]>("/study-rooms").then((r) => r.data),
+  redeemInvite: (invite: string) =>
+    apiClient.post<StudyRoomDto>("/study-rooms/join", { invite }).then((r) => r.data),
   get: (id: string) => apiClient.get<StudyRoomDto>(`/study-rooms/${id}`).then((r) => r.data),
   messages: (id: string) =>
     apiClient.get<StudyRoomMessageDto[]>(`/study-rooms/${id}/messages`).then((r) => r.data),

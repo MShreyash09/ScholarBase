@@ -6,6 +6,7 @@ import { useStudyRoom } from "@/hooks/useStudyRoom";
 import { useStudyRoomMedia } from "@/hooks/useStudyRoomMedia";
 import { ChatPanel } from "@/components/study-room/ChatPanel";
 import { CallPanel } from "@/components/study-room/CallPanel";
+import { CopyInviteButton } from "@/components/study-room/CopyInviteButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -45,7 +46,9 @@ export function StudyRoomPage() {
   if (roomQuery.isError) {
     return (
       <Card className="p-8 text-center">
-        <p className="text-sm text-neutral-500">This study room is not available.</p>
+        <p className="text-sm text-neutral-500">
+          This study room is not available. Private rooms need an invite link.
+        </p>
         <Button asChild className="mt-4">
           <Link to="/study-rooms">Back to study rooms</Link>
         </Button>
@@ -77,9 +80,14 @@ export function StudyRoomPage() {
             <p className="mt-1 text-sm text-neutral-500">{roomQuery.data.description}</p>
           )}
         </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to="/study-rooms">Leave room</Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          {roomQuery.data?.inviteCode && (
+            <CopyInviteButton inviteCode={roomQuery.data.inviteCode} />
+          )}
+          <Button asChild variant="outline" size="sm">
+            <Link to="/study-rooms">Leave room</Link>
+          </Button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

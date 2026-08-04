@@ -123,13 +123,15 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
     const roomId = payload?.roomId;
     if (!roomId) return this.fail(client, "A room id is required to join");
 
-    try {
-      await this.studyRoomsService.assertJoinable(roomId);
-    } catch {
-      return this.fail(client, "That study room is not available");
-    }
-
     const user = client.data.user;
+
+    // Private rooms require redeemed membership, so a leaked room id on its own
+    // gets no further than this check.
+    try {
+      await this.studyRoomsService.assertJoinable(roomId, user.id);
+    } catch {
+      return this.fail(client, "You need an invite link to join this room");
+    }
     const participant: StudyRoomParticipantDto = {
       socketId: client.id,
       userId: user.id,

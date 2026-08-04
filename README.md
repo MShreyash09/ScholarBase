@@ -66,7 +66,21 @@ account.
 
 ## Study rooms
 
-Any logged-in user can open a room at `/study-rooms` and join it. A room has two layers:
+Any logged-in user can open a room at `/study-rooms`. Rooms are **private by default**:
+
+- A **private** room is never listed for anyone but its creator and the people who redeemed its
+  invite. The creator shares a link (`/study-rooms/join/<code>`) via the *Copy invite link* button;
+  the recipient either clicks it or pastes it into the *Join with an invite link* field in the lobby.
+  Redeeming stores membership, so the link is only needed once.
+- A **public** room is listed for every signed-in student, as before.
+
+Knowing a private room's id is deliberately not enough to get in. The invite code is a separate
+24-character secret, and membership is checked in three places — the lobby query, `GET
+/study-rooms/:id` (404, so a guess can't confirm the room exists), and the socket `room:join`
+handler, which is the gate that actually protects the call. Admins can close any room for
+moderation but do **not** get to silently join private ones.
+
+A room has two layers:
 
 - **Chat** — a socket.io gateway on the `/study-rooms` namespace (`backend/src/modules/study-rooms`).
   Messages are persisted, and the last 50 are replayed when you join. Presence and typing

@@ -1,9 +1,28 @@
-import { UserRole } from "./enums";
+import { StudyRoomVisibility, UserRole } from "./enums";
 
 // Socket.io namespace the study-room gateway is mounted on.
 export const STUDY_ROOM_NAMESPACE = "/study-rooms";
 
 export const STUDY_ROOM_MESSAGE_MAX_LENGTH = 2000;
+
+/** Path an invite link points at, e.g. /study-rooms/join/AbC123... */
+export const STUDY_ROOM_INVITE_PATH = "/study-rooms/join";
+
+/**
+ * Pulls the invite code out of whatever the user pasted — a full link, a link
+ * with a query string or trailing slash, or the bare code. Shared so the
+ * browser and the API agree on what counts as a valid invite.
+ */
+export function parseInviteCode(input: string): string | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  // Strip any query/fragment, then take the last non-empty path segment.
+  const withoutQuery = trimmed.split(/[?#]/)[0];
+  const segment = withoutQuery.split("/").filter(Boolean).pop() ?? "";
+
+  return /^[A-Za-z0-9_-]{8,64}$/.test(segment) ? segment : null;
+}
 
 export interface StudyRoomDto {
   id: string;
@@ -11,6 +30,13 @@ export interface StudyRoomDto {
   description: string | null;
   createdById: string;
   createdByName: string;
+  visibility: StudyRoomVisibility;
+  /**
+   * The secret half of the invite link. Only ever populated for the creator and
+   * for users who already redeemed the invite — null for everyone else, so a
+   * public room listing can never leak a way in.
+   */
+  inviteCode: string | null;
   isActive: boolean;
   /** Live count from the gateway's presence registry, not a stored column. */
   participantCount: number;
@@ -20,6 +46,12 @@ export interface StudyRoomDto {
 export interface CreateStudyRoomRequestDto {
   name: string;
   description?: string | null;
+  visibility?: StudyRoomVisibility;
+}
+
+/** Accepts either a full invite URL or the bare code pasted on its own. */
+export interface RedeemInviteRequestDto {
+  invite: string;
 }
 
 export interface StudyRoomMessageDto {

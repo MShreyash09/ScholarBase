@@ -3,6 +3,11 @@ export enum UserRole {
   ADMIN = "admin",
 }
 
+export enum StudyRoomVisibility {
+  PUBLIC = "public",
+  PRIVATE = "private",
+}
+
 export enum UploadStatus {
   PENDING = "pending",
   READY = "ready",

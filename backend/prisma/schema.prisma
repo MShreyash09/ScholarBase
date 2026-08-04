@@ -12,6 +12,11 @@ enum UserRole {
   admin
 }
 
+enum StudyRoomVisibility {
+  public
+  private
+}
+
 enum UploadStatus {
   pending
   ready
@@ -40,6 +45,7 @@ model User {
   uploadedNotes     Note[]             @relation("NoteUploader")
   studyRooms        StudyRoom[]        @relation("StudyRoomCreator")
   studyRoomMessages StudyRoomMessage[] @relation("StudyRoomMessageSender")
+  studyRoomMembers  StudyRoomMember[]  @relation("StudyRoomMembership")
 
   @@map("users")
 }
@@ -128,19 +134,40 @@ model QuestionPaper {
 }
 
 model StudyRoom {
-  id          String   @id @default(uuid())
+  id          String              @id @default(uuid())
   name        String
   description String?
-  createdById String   @map("created_by")
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdById String              @map("created_by")
+  visibility  StudyRoomVisibility @default(private)
+  /// Secret half of the invite link. Knowing a room's id is deliberately not
+  /// enough to enter a private room — the code has to be redeemed first.
+  inviteCode  String              @unique @map("invite_code")
+  isActive    Boolean             @default(true) @map("is_active")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
 
   createdBy User               @relation("StudyRoomCreator", fields: [createdById], references: [id], onDelete: Cascade)
   messages  StudyRoomMessage[]
+  members   StudyRoomMember[]
 
   @@index([isActive, createdAt])
   @@map("study_rooms")
+}
+
+/// Who has redeemed a private room's invite. Persisted so an invited user only
+/// needs the link once, not every time they come back to the room.
+model StudyRoomMember {
+  id       String   @id @default(uuid())
+  roomId   String   @map("room_id")
+  userId   String   @map("user_id")
+  joinedAt DateTime @default(now()) @map("joined_at")
+
+  room StudyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User      @relation("StudyRoomMembership", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@index([userId])
+  @@map("study_room_members")
 }
 
 model StudyRoomMessage {
