@@ -72,6 +72,12 @@ export interface StudyRoomParticipantDto {
   userId: string;
   fullName: string;
   role: UserRole;
+  /**
+   * True when this participant is an admin present via oversight rather than
+   * membership — i.e. they entered a room they were not invited to. This is
+   * shown in the UI on purpose: admin presence is never hidden from the room.
+   */
+  isModerator: boolean;
   /** True once the participant has published a media stream to the room. */
   inCall: boolean;
   audioEnabled: boolean;
@@ -97,7 +103,14 @@ export enum StudyRoomServerEvent {
   TYPING = "chat:typing",
   SIGNAL = "webrtc:signal",
   MEDIA_STATE = "media:state",
+  /** The room was closed under us — moderation, or the creator ending it. */
+  CLOSED = "room:closed",
   ERROR = "room:error",
+}
+
+export interface RoomClosedPayload {
+  roomId: string;
+  message: string;
 }
 
 export interface JoinRoomPayload {

@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { APP_GUARD } from "@nestjs/core";
+import { AppController } from "./app.controller";
 import { PrismaModule } from "./prisma/prisma.module";
 import { StorageModule } from "./modules/storage/storage.module";
 import { AuthModule } from "./modules/auth/auth.module";
@@ -26,6 +27,7 @@ import { RolesGuard } from "./common/guards/roles.guard";
     NotesModule,
     StudyRoomsModule,
   ],
+  controllers: [AppController],
   providers: [
     // Order matters: JwtAuthGuard populates request.user before RolesGuard
     // checks it. Both are global so every new route is protected by default

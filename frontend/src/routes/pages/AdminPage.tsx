@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { yearLevelsApi, subjectsApi } from "@/lib/api/academic";
 import { examTypesApi } from "@/lib/api/exam-types";
@@ -7,6 +7,11 @@ import { notesApi } from "@/lib/api/notes";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { AdminStudyRooms } from "@/components/study-room/AdminStudyRooms";
+import {
+  SubjectCombobox,
+  type SubjectComboboxHandle,
+} from "@/components/admin/SubjectCombobox";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -31,10 +36,7 @@ export function AdminPage() {
     })),
   });
   const allSubjects = useMemo(
-    () =>
-      subjectQueries
-        .flatMap((q) => q.data ?? [])
-        .map((s) => ({ id: s.id, label: `${s.code} — ${s.name}` })),
+    () => subjectQueries.flatMap((q) => q.data ?? []),
     [subjectQueries],
   );
 
@@ -74,14 +76,14 @@ export function AdminPage() {
   });
 
   // --- Upload paper ---
-  const [paperSubjectId, setPaperSubjectId] = useState("");
+  const paperSubjectRef = useRef<SubjectComboboxHandle>(null);
   const [paperExamTypeId, setPaperExamTypeId] = useState("");
   const [paperYear, setPaperYear] = useState(String(new Date().getFullYear()));
   const [paperFile, setPaperFile] = useState<File | null>(null);
   const uploadPaper = useMutation({
-    mutationFn: () => {
+    mutationFn: (subjectId: string) => {
       const form = new FormData();
-      form.append("subjectId", paperSubjectId);
+      form.append("subjectId", subjectId);
       form.append("examTypeId", paperExamTypeId);
       form.append("academicYear", paperYear);
       form.append("file", paperFile!);
@@ -90,17 +92,32 @@ export function AdminPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["papers"] });
       setPaperFile(null);
+      paperSubjectRef.current?.reset();
     },
   });
 
+  const handleUploadPaper = async (e: FormEvent) => {
+    e.preventDefault();
+    // Resolve the typed subject to an id (creating it if new) before uploading,
+    // so a subject-entry problem surfaces on the field instead of as a failed
+    // upload.
+    let subjectId: string;
+    try {
+      subjectId = await paperSubjectRef.current!.resolve();
+    } catch {
+      return;
+    }
+    uploadPaper.mutate(subjectId);
+  };
+
   // --- Upload note ---
-  const [noteSubjectId, setNoteSubjectId] = useState("");
+  const noteSubjectRef = useRef<SubjectComboboxHandle>(null);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteFile, setNoteFile] = useState<File | null>(null);
   const uploadNote = useMutation({
-    mutationFn: () => {
+    mutationFn: (subjectId: string) => {
       const form = new FormData();
-      form.append("subjectId", noteSubjectId);
+      form.append("subjectId", subjectId);
       form.append("title", noteTitle);
       form.append("file", noteFile!);
       return notesApi.upload(form);
@@ -109,12 +126,32 @@ export function AdminPage() {
       queryClient.invalidateQueries({ queryKey: ["notes"] });
       setNoteTitle("");
       setNoteFile(null);
+      noteSubjectRef.current?.reset();
     },
   });
+
+  const handleUploadNote = async (e: FormEvent) => {
+    e.preventDefault();
+    let subjectId: string;
+    try {
+      subjectId = await noteSubjectRef.current!.resolve();
+    } catch {
+      return;
+    }
+    uploadNote.mutate(subjectId);
+  };
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-3xl">Admin</h1>
+
+      <Section title="Study rooms">
+        <p className="mb-2 text-sm text-neutral-500">
+          Every open room, including private ones. Closing a room ends the session and removes
+          everyone from it.
+        </p>
+        <AdminStudyRooms />
+      </Section>
 
       <Section title="Add year level">
         <form
@@ -204,26 +241,10 @@ export function AdminPage() {
       </Section>
 
       <Section title="Upload question paper">
-        <form
-          className="flex flex-wrap items-end gap-3"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            uploadPaper.mutate();
-          }}
-        >
-          <select
-            className="h-10 rounded-lg border border-muted px-3 text-sm"
-            value={paperSubjectId}
-            onChange={(e) => setPaperSubjectId(e.target.value)}
-            required
-          >
-            <option value="">Subject</option>
-            {allSubjects.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+        <form className="flex flex-wrap items-start gap-3" onSubmit={handleUploadPaper}>
+          <div className="min-w-[16rem]">
+            <SubjectCombobox ref={paperSubjectRef} subjects={allSubjects} yearLevels={yearLevels ?? []} />
+          </div>
           <select
             className="h-10 rounded-lg border border-muted px-3 text-sm"
             value={paperExamTypeId}
@@ -260,26 +281,10 @@ export function AdminPage() {
       </Section>
 
       <Section title="Upload notes">
-        <form
-          className="flex flex-wrap items-end gap-3"
-          onSubmit={(e: FormEvent) => {
-            e.preventDefault();
-            uploadNote.mutate();
-          }}
-        >
-          <select
-            className="h-10 rounded-lg border border-muted px-3 text-sm"
-            value={noteSubjectId}
-            onChange={(e) => setNoteSubjectId(e.target.value)}
-            required
-          >
-            <option value="">Subject</option>
-            {allSubjects.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+        <form className="flex flex-wrap items-start gap-3" onSubmit={handleUploadNote}>
+          <div className="min-w-[16rem]">
+            <SubjectCombobox ref={noteSubjectRef} subjects={allSubjects} yearLevels={yearLevels ?? []} />
+          </div>
           <Input
             placeholder="Title"
             value={noteTitle}

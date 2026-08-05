@@ -53,6 +53,11 @@ export class StudyRoomsPresence {
     return removed;
   }
 
+  /** Drops the whole room's presence at once — used when a room is closed. */
+  clearRoom(roomId: string): void {
+    this.rooms.delete(roomId);
+  }
+
   get(roomId: string, socketId: string): StudyRoomParticipantDto | undefined {
     return this.rooms.get(roomId)?.get(socketId);
   }

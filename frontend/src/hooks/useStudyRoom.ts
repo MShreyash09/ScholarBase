@@ -6,6 +6,7 @@ import {
   type MediaStateBroadcastPayload,
   type ParticipantJoinedPayload,
   type ParticipantLeftPayload,
+  type RoomClosedPayload,
   type RoomErrorPayload,
   type RoomJoinedPayload,
   type StudyRoomMessageDto,
@@ -22,6 +23,8 @@ const TYPING_TIMEOUT_MS = 3000;
 export interface UseStudyRoomResult {
   status: StudyRoomStatus;
   error: string | null;
+  /** Set when the room was closed while we were in it. */
+  closedMessage: string | null;
   self: StudyRoomParticipantDto | null;
   /** Everyone in the room except you. */
   participants: StudyRoomParticipantDto[];
@@ -36,6 +39,7 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
   const socketRef = useRef<Socket | null>(null);
   const [status, setStatus] = useState<StudyRoomStatus>("connecting");
   const [error, setError] = useState<string | null>(null);
+  const [closedMessage, setClosedMessage] = useState<string | null>(null);
   const [self, setSelf] = useState<StudyRoomParticipantDto | null>(null);
   const [participants, setParticipants] = useState<StudyRoomParticipantDto[]>([]);
   const [messages, setMessages] = useState<StudyRoomMessageDto[]>([]);
@@ -155,6 +159,15 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
       }, TYPING_TIMEOUT_MS);
     });
 
+    socket.on(StudyRoomServerEvent.CLOSED, (payload: RoomClosedPayload) => {
+      if (cancelled) return;
+      setClosedMessage(payload.message);
+      setParticipants([]);
+      // The room is gone, so stop the socket rather than let it retry a join
+      // that can only fail from here on.
+      socket.disconnect();
+    });
+
     socket.on(StudyRoomServerEvent.ERROR, (payload: RoomErrorPayload) => {
       if (cancelled) return;
       setError(payload.message);
@@ -191,5 +204,16 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
 
   const typingNames = useMemo(() => Object.values(typing), [typing]);
 
-  return { status, error, self, participants, messages, typingNames, sendMessage, setTyping, socketRef };
+  return {
+    status,
+    error,
+    closedMessage,
+    self,
+    participants,
+    messages,
+    typingNames,
+    sendMessage,
+    setTyping,
+    socketRef,
+  };
 }

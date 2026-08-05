@@ -15,6 +15,9 @@ export const studyRoomsApi = {
   list: () => apiClient.get<StudyRoomDto[]>("/study-rooms").then((r) => r.data),
   redeemInvite: (invite: string) =>
     apiClient.post<StudyRoomDto>("/study-rooms/join", { invite }).then((r) => r.data),
+  /** Admin-only: every open room, including private ones, for moderation. */
+  listAllForAdmin: () =>
+    apiClient.get<StudyRoomDto[]>("/study-rooms/admin/all").then((r) => r.data),
   get: (id: string) => apiClient.get<StudyRoomDto>(`/study-rooms/${id}`).then((r) => r.data),
   messages: (id: string) =>
     apiClient.get<StudyRoomMessageDto[]>(`/study-rooms/${id}/messages`).then((r) => r.data),

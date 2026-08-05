@@ -105,6 +105,18 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
     });
   }
 
+  /**
+   * Ends a live session. Called after a room is closed so that closing is a
+   * real moderation action rather than just hiding the room from the lobby —
+   * anyone mid-chat or mid-call is told and dropped out of the room. Sockets
+   * stay connected so the client can navigate away cleanly.
+   */
+  closeRoom(roomId: string, message: string): void {
+    this.server.to(roomId).emit(StudyRoomServerEvent.CLOSED, { roomId, message });
+    this.server.in(roomId).socketsLeave(roomId);
+    this.presence.clearRoom(roomId);
+  }
+
   handleDisconnect(client: Socket): void {
     for (const { roomId, participant } of this.presence.removeSocketEverywhere(client.id)) {
       this.server.to(roomId).emit(StudyRoomServerEvent.PARTICIPANT_LEFT, {
@@ -126,9 +138,11 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
     const user = client.data.user;
 
     // Private rooms require redeemed membership, so a leaked room id on its own
-    // gets no further than this check.
+    // gets no further than this check. An admin without an invite is allowed in
+    // for oversight, but comes back flagged as a moderator — never hidden.
+    let isModerator = false;
     try {
-      await this.studyRoomsService.assertJoinable(roomId, user.id);
+      ({ isModerator } = await this.studyRoomsService.assertJoinable(roomId, user.id, user.role));
     } catch {
       return this.fail(client, "You need an invite link to join this room");
     }
@@ -137,6 +151,7 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
       userId: user.id,
       fullName: user.fullName,
       role: user.role,
+      isModerator,
       inCall: false,
       audioEnabled: false,
       videoEnabled: false,

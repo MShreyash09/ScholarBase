@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { studyRoomsApi } from "@/lib/api/study-rooms";
@@ -32,6 +33,7 @@ export function StudyRoomPage() {
   const {
     status,
     error,
+    closedMessage,
     self,
     participants,
     messages,
@@ -43,12 +45,31 @@ export function StudyRoomPage() {
 
   const media = useStudyRoomMedia(roomId, socketRef, participants, status === "connected");
 
+  // If the room is closed under us, release the mic/camera immediately rather
+  // than leaving the capture running behind a dead session.
+  const { inCall, leaveCall } = media;
+  useEffect(() => {
+    if (closedMessage && inCall) leaveCall();
+  }, [closedMessage, inCall, leaveCall]);
+
   if (roomQuery.isError) {
     return (
       <Card className="p-8 text-center">
         <p className="text-sm text-neutral-500">
           This study room is not available. Private rooms need an invite link.
         </p>
+        <Button asChild className="mt-4">
+          <Link to="/study-rooms">Back to study rooms</Link>
+        </Button>
+      </Card>
+    );
+  }
+
+  if (closedMessage) {
+    return (
+      <Card className="mx-auto max-w-md p-8 text-center">
+        <p className="text-sm font-semibold text-neutral-800">{closedMessage}</p>
+        <p className="mt-1 text-sm text-neutral-500">The session has ended.</p>
         <Button asChild className="mt-4">
           <Link to="/study-rooms">Back to study rooms</Link>
         </Button>
@@ -92,6 +113,13 @@ export function StudyRoomPage() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
+      {self?.isModerator && (
+        <div className="rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+          You joined this room as an <strong>admin moderator</strong>. Everyone here can see that
+          you're present — your name shows in the participant list with a Moderator badge.
+        </div>
+      )}
+
       <Card className="p-4">
         <CallPanel
           media={media}
@@ -129,6 +157,11 @@ export function StudyRoomPage() {
                     <span className="text-neutral-400"> (you)</span>
                   )}
                 </span>
+                {participant.isModerator && (
+                  <Badge variant="default" title="An admin present for moderation">
+                    Moderator
+                  </Badge>
+                )}
                 {(participant.socketId === self?.socketId ? media.inCall : participant.inCall) && (
                   <Badge variant="success">on call</Badge>
                 )}

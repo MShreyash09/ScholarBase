@@ -54,7 +54,23 @@ export class StudyRoomsService {
     );
   }
 
-  async findOne(id: string, userId: string): Promise<StudyRoomDto> {
+  /**
+   * Moderation listing: every open room, including private ones the admin is
+   * not a member of. Invite codes are still withheld — an admin can end a
+   * private session, but not quietly let themselves into it.
+   */
+  async findAllForModeration(): Promise<StudyRoomDto[]> {
+    const rooms = await this.prisma.studyRoom.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: "desc" },
+      ...roomWithCreator,
+    });
+
+    const counts = this.presence.countsByRoom();
+    return rooms.map((room) => this.toDto(room, counts.get(room.id) ?? 0, false));
+  }
+
+  async findOne(id: string, userId: string, role: UserRole): Promise<StudyRoomDto> {
     const room = await this.prisma.studyRoom.findUnique({
       where: { id },
       ...roomWithCreator,
@@ -65,9 +81,11 @@ export class StudyRoomsService {
     }
 
     const entitled = await this.isEntitled(room, userId);
-    // 404 rather than 403 for private rooms: a wrong guess should not confirm
-    // that a room with this id exists.
-    if (room.visibility === PrismaVisibility.private && !entitled) {
+    // Admins may open any room for oversight (the room page needs this to load
+    // before the socket join). Everyone else gets a 404 on a private room they
+    // aren't in — a wrong guess should not confirm the room exists. The invite
+    // code is still withheld from a non-member admin (entitled stays false).
+    if (room.visibility === PrismaVisibility.private && !entitled && role !== UserRole.ADMIN) {
       throw new NotFoundException("Study room not found");
     }
 
@@ -140,17 +158,32 @@ export class StudyRoomsService {
    * The real gate for joining a call: the gateway calls this before letting a
    * socket into the room, so holding a room id is not enough for a private room.
    */
-  async assertJoinable(roomId: string, userId: string): Promise<StudyRoom> {
+  async assertJoinable(
+    roomId: string,
+    userId: string,
+    role: UserRole,
+  ): Promise<{ room: StudyRoom; isModerator: boolean }> {
     const room = await this.prisma.studyRoom.findUnique({ where: { id: roomId } });
     if (!room || !room.isActive) {
       throw new NotFoundException("Study room not found");
     }
 
-    if (room.visibility === PrismaVisibility.private && !(await this.isEntitled(room, userId))) {
-      throw new ForbiddenException("You need an invite link to join this room");
+    if (room.visibility === PrismaVisibility.public) {
+      return { room, isModerator: false };
     }
 
-    return room;
+    if (await this.isEntitled(room, userId)) {
+      return { room, isModerator: false };
+    }
+
+    // An admin with no invite may still enter for oversight, but is flagged as
+    // a moderator so the room is told they are present. There is deliberately
+    // no silent-join path — admin presence is always visible.
+    if (role === UserRole.ADMIN) {
+      return { room, isModerator: true };
+    }
+
+    throw new ForbiddenException("You need an invite link to join this room");
   }
 
   /**
@@ -160,9 +193,10 @@ export class StudyRoomsService {
   async messagesForUser(
     roomId: string,
     userId: string,
+    role: UserRole,
     limit?: number,
   ): Promise<StudyRoomMessageDto[]> {
-    await this.assertJoinable(roomId, userId);
+    await this.assertJoinable(roomId, userId, role);
     return this.recentMessages(roomId, limit);
   }
 

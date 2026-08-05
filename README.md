@@ -77,8 +77,21 @@ Any logged-in user can open a room at `/study-rooms`. Rooms are **private by def
 Knowing a private room's id is deliberately not enough to get in. The invite code is a separate
 24-character secret, and membership is checked in three places — the lobby query, `GET
 /study-rooms/:id` (404, so a guess can't confirm the room exists), and the socket `room:join`
-handler, which is the gate that actually protects the call. Admins can close any room for
-moderation but do **not** get to silently join private ones.
+handler, which is the gate that actually protects the call.
+
+**Moderation.** The Admin page lists *every* open room, including private ones the admin isn't a
+member of (`GET /study-rooms/admin/all`, admin-only), so any session can be ended. Closing a room
+is a real action, not just a delisting: everyone in it is sent `room:closed`, removed from the
+room, and can't rejoin.
+
+From that panel an admin can also **Join** any room for oversight, including a private one they
+were never invited to. This is deliberately **not** covert: the admin enters as a normal
+participant, is flagged `isModerator`, and shows in everyone's participant list with a "Moderator"
+badge — the owner is notified of the join like any other. There is no hidden-presence path, by
+design: silently intercepting a private call is covert interception of a private communication,
+so the feature makes admin oversight transparent instead. Admins still do **not** receive the
+invite code for a private room (`inviteCode` stays null for them), so oversight can't be turned
+into a way to silently re-enter later or reshare the room.
 
 A room has two layers:
 
@@ -113,11 +126,37 @@ without needing infra changes to the earlier phases.
 
 ## Production
 
-`infra/docker-compose.prod.yml` builds real images for backend/frontend behind Traefik
-(automatic HTTPS via Let's Encrypt) and runs a daily `pg_dump` backup sidecar. Copy
+Two ways to run this in production, depending on what infra you have:
+
+**Single server (recommended if you have one).** `infra/docker-compose.prod.yml`
+builds real images for backend/frontend behind Traefik (automatic HTTPS via Let's
+Encrypt), plus Postgres, MinIO with persistent volumes, and a daily `pg_dump`
+backup sidecar — everything in one place, no per-service env-var juggling. Copy
 `infra/.env.example` values plus `ACME_EMAIL`/`API_DOMAIN`/`APP_DOMAIN`, then:
 
 ```bash
 docker compose -f infra/docker-compose.prod.yml --env-file infra/.env up -d --build
 docker compose -f infra/docker-compose.prod.yml exec backend sh -c "ADMIN_EMAIL=... ADMIN_PASSWORD=... pnpm seed:admin"
 ```
+
+The backend container runs `prisma migrate deploy` automatically on every start
+(see `backend/Dockerfile`), so the schema is always up to date before the app
+starts serving — no separate migration step needed.
+
+**Split across managed platforms** (e.g. free tiers: Vercel for the frontend,
+a host that runs a persistent Node process — like Render's Web Service — for
+the backend, since the study-rooms WebSocket gateway keeps presence in-process
+and can't run on a stateless/serverless function). In that case:
+
+- The backend still needs a real Postgres (with the `citext` extension) and,
+  since a platform like Render's free Web Service has no persistent disk, real
+  object storage rather than a self-hosted MinIO container — point the
+  `MINIO_*` env vars at an S3-compatible provider like Cloudflare R2 instead
+  (see the comment in `backend/.env.example`; `StorageService` is already
+  generic S3, no code change needed).
+- `GET /api/health` is a public, DB-free liveness endpoint — use it as the
+  platform's health check target, and optionally as an external keep-alive
+  ping if the platform sleeps its free tier after idle time.
+- Point the frontend's `VITE_API_BASE_URL` at the backend's public URL, and
+  add `frontend/vercel.json`'s SPA rewrite if deploying to Vercel (already in
+  the repo) so client-side routes don't 404 on refresh.

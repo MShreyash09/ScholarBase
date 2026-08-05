@@ -6,7 +6,7 @@ FROM node:22-alpine AS build
 RUN corepack enable
 WORKDIR /workspace
 
-COPY package.json pnpm-workspace.yaml ./
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/shared-types ./packages/shared-types
 COPY frontend ./frontend
 
