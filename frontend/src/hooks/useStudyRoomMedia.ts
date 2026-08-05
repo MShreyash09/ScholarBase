@@ -34,6 +34,7 @@ export interface UseStudyRoomMediaResult {
   audioEnabled: boolean;
   videoEnabled: boolean;
   screenEnabled: boolean;
+  hasVideoTrack: boolean;
   mediaError: string | null;
   joinCall: () => Promise<void>;
   leaveCall: () => void;
