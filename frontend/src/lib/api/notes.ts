@@ -7,7 +7,5 @@ export const notesApi = {
   getDownloadUrl: (id: string) =>
     apiClient.get<DownloadUrlDto>(`/notes/${id}/download`).then((r) => r.data),
   upload: (form: FormData) =>
-    apiClient
-      .post<NoteDto>("/notes", form, { headers: { "Content-Type": "multipart/form-data" } })
-      .then((r) => r.data),
+    apiClient.post<NoteDto>("/notes", form).then((r) => r.data),
 };

@@ -7,9 +7,5 @@ export const papersApi = {
   getDownloadUrl: (id: string) =>
     apiClient.get<DownloadUrlDto>(`/papers/${id}/download`).then((r) => r.data),
   upload: (form: FormData) =>
-    apiClient
-      .post<QuestionPaperDto>("/papers", form, {
-        headers: { "Content-Type": "multipart/form-data" },
-      })
-      .then((r) => r.data),
+    apiClient.post<QuestionPaperDto>("/papers", form).then((r) => r.data),
 };
