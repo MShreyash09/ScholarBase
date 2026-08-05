@@ -33,12 +33,13 @@ export interface UseStudyRoomMediaResult {
   remoteStreams: Record<string, MediaStream>;
   audioEnabled: boolean;
   videoEnabled: boolean;
-  hasVideoTrack: boolean;
+  screenEnabled: boolean;
   mediaError: string | null;
   joinCall: () => Promise<void>;
   leaveCall: () => void;
   toggleAudio: () => void;
   toggleVideo: () => void;
+  toggleScreenShare: () => Promise<void>;
 }
 
 /**
@@ -58,6 +59,7 @@ export function useStudyRoomMedia(
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
+  const [screenEnabled, setScreenEnabled] = useState(false);
   const [hasVideoTrack, setHasVideoTrack] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
 
@@ -66,12 +68,13 @@ export function useStudyRoomMedia(
   // holding them here avoids dropping candidates and stalling the connection.
   const pendingCandidatesRef = useRef(new Map<string, RTCIceCandidateInit[]>());
   const localStreamRef = useRef<MediaStream | null>(null);
+  const screenStreamRef = useRef<MediaStream | null>(null);
   const inCallRef = useRef(false);
   const participantsRef = useRef(participants);
   participantsRef.current = participants;
 
   const emitMediaState = useCallback(
-    (state: { inCall: boolean; audioEnabled: boolean; videoEnabled: boolean }) => {
+    (state: { inCall: boolean; audioEnabled: boolean; videoEnabled: boolean; screenEnabled: boolean }) => {
       if (!roomId) return;
       socketRef.current?.emit(StudyRoomClientEvent.MEDIA_STATE, { roomId, ...state });
     },
@@ -104,9 +107,8 @@ export function useStudyRoomMedia(
       const pc = new RTCPeerConnection({ iceServers: resolveIceServers() });
       peersRef.current.set(peerSocketId, pc);
 
-      localStreamRef.current
-        ?.getTracks()
-        .forEach((track) => pc.addTrack(track, localStreamRef.current!));
+      const streamToUse = screenStreamRef.current || localStreamRef.current;
+      streamToUse?.getTracks().forEach((track) => pc.addTrack(track, streamToUse));
 
       pc.onicecandidate = (event) => {
         if (!event.candidate || !roomId) return;
@@ -253,6 +255,7 @@ export function useStudyRoomMedia(
       inCall: true,
       audioEnabled: true,
       videoEnabled: videoTracks.length > 0,
+      screenEnabled: false,
     });
 
     // Glare-free rule: whoever joins the call initiates to everyone already in
@@ -282,11 +285,15 @@ export function useStudyRoomMedia(
 
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
+    screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+    screenStreamRef.current = null;
+
     setLocalStream(null);
     setRemoteStreams({});
     setHasVideoTrack(false);
+    setScreenEnabled(false);
 
-    emitMediaState({ inCall: false, audioEnabled: false, videoEnabled: false });
+    emitMediaState({ inCall: false, audioEnabled: false, videoEnabled: false, screenEnabled: false });
   }, [dropPeer, emitMediaState]);
 
   const toggleAudio = useCallback(() => {
@@ -298,8 +305,8 @@ export function useStudyRoomMedia(
     setAudioEnabled(next);
     // Tracks stay in the connection when muted, so no renegotiation is needed —
     // peers just need the flag to render the muted badge.
-    emitMediaState({ inCall: true, audioEnabled: next, videoEnabled });
-  }, [emitMediaState, videoEnabled]);
+    emitMediaState({ inCall: true, audioEnabled: next, videoEnabled, screenEnabled });
+  }, [emitMediaState, videoEnabled, screenEnabled]);
 
   const toggleVideo = useCallback(() => {
     const stream = localStreamRef.current;
@@ -311,8 +318,70 @@ export function useStudyRoomMedia(
     const next = !tracks.every((t) => t.enabled);
     tracks.forEach((track) => (track.enabled = next));
     setVideoEnabled(next);
-    emitMediaState({ inCall: true, audioEnabled, videoEnabled: next });
-  }, [audioEnabled, emitMediaState]);
+    emitMediaState({ inCall: true, audioEnabled, videoEnabled: next, screenEnabled });
+  }, [audioEnabled, emitMediaState, screenEnabled]);
+
+  const restoreCameraTrack = useCallback(() => {
+    const camTrack = localStreamRef.current?.getVideoTracks()[0];
+    if (camTrack) {
+      peersRef.current.forEach((pc) => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+        if (sender) sender.replaceTrack(camTrack).catch(() => undefined);
+      });
+    }
+  }, []);
+
+  const toggleScreenShare = useCallback(async () => {
+    if (!inCallRef.current || !localStreamRef.current) return;
+
+    if (screenStreamRef.current) {
+      // Stop screen share
+      screenStreamRef.current.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
+      setScreenEnabled(false);
+      restoreCameraTrack();
+      
+      // We must get the latest videoEnabled state from localStream to broadcast correctly
+      const camTrack = localStreamRef.current.getVideoTracks()[0];
+      const isVideoOn = camTrack ? camTrack.enabled : false;
+      const isAudioOn = localStreamRef.current.getAudioTracks().some(t => t.enabled);
+      
+      emitMediaState({ inCall: true, audioEnabled: isAudioOn, videoEnabled: isVideoOn, screenEnabled: false });
+    } else {
+      // Start screen share
+      try {
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const displayTrack = displayStream.getVideoTracks()[0];
+        if (!displayTrack) return;
+
+        screenStreamRef.current = displayStream;
+        setScreenEnabled(true);
+
+        displayTrack.onended = () => {
+          screenStreamRef.current = null;
+          setScreenEnabled(false);
+          restoreCameraTrack();
+          
+          const camTrack = localStreamRef.current?.getVideoTracks()[0];
+          const isVideoOn = camTrack ? camTrack.enabled : false;
+          const isAudioOn = localStreamRef.current?.getAudioTracks().some(t => t.enabled) ?? false;
+          
+          emitMediaState({ inCall: true, audioEnabled: isAudioOn, videoEnabled: isVideoOn, screenEnabled: false });
+        };
+
+        peersRef.current.forEach((pc) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+          if (sender) sender.replaceTrack(displayTrack).catch(() => undefined);
+        });
+
+        // Use current audioEnabled/videoEnabled for state
+        const isAudioOn = localStreamRef.current.getAudioTracks().some(t => t.enabled);
+        emitMediaState({ inCall: true, audioEnabled: isAudioOn, videoEnabled: true, screenEnabled: true });
+      } catch (e) {
+        console.warn("Screen share cancelled", e);
+      }
+    }
+  }, [emitMediaState, restoreCameraTrack]);
 
   // Never leave the camera light on after navigating away. The Map instance is
   // created once and only mutated, so capturing it here is the same registry
@@ -324,6 +393,8 @@ export function useStudyRoomMedia(
       peers.clear();
       localStreamRef.current?.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
+      screenStreamRef.current?.getTracks().forEach((track) => track.stop());
+      screenStreamRef.current = null;
       inCallRef.current = false;
     };
   }, [peers, roomId]);
@@ -335,11 +406,13 @@ export function useStudyRoomMedia(
     remoteStreams,
     audioEnabled,
     videoEnabled,
+    screenEnabled,
     hasVideoTrack,
     mediaError,
     joinCall,
     leaveCall,
     toggleAudio,
     toggleVideo,
+    toggleScreenShare,
   };
 }

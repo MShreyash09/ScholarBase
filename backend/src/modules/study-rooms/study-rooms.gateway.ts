@@ -155,6 +155,7 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
       inCall: false,
       audioEnabled: false,
       videoEnabled: false,
+      screenEnabled: false,
     };
 
     await client.join(roomId);
@@ -274,6 +275,7 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
       inCall: Boolean(payload.inCall),
       audioEnabled: Boolean(payload.audioEnabled),
       videoEnabled: Boolean(payload.videoEnabled),
+      screenEnabled: Boolean(payload.screenEnabled),
     };
 
     const participant = this.presence.updateMediaState(roomId, client.id, state);

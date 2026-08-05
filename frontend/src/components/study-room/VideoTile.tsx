@@ -7,9 +7,10 @@ interface VideoTileProps {
   isSelf?: boolean;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  screenEnabled?: boolean;
 }
 
-export function VideoTile({ stream, label, isSelf = false, audioEnabled, videoEnabled }: VideoTileProps) {
+export function VideoTile({ stream, label, isSelf = false, audioEnabled, videoEnabled, screenEnabled = false }: VideoTileProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -20,14 +21,14 @@ export function VideoTile({ stream, label, isSelf = false, audioEnabled, videoEn
   }, [stream]);
 
   return (
-    <div className="relative aspect-video overflow-hidden rounded-xl bg-neutral-900">
+    <div className={cn("relative overflow-hidden rounded-xl bg-neutral-900", screenEnabled ? "aspect-auto h-[50vh] sm:h-full lg:col-span-full" : "aspect-video")}>
       <video
         ref={videoRef}
         autoPlay
         playsInline
         // Never play your own mic back through your speakers.
         muted={isSelf}
-        className={cn("h-full w-full object-cover", !videoEnabled && "invisible")}
+        className={cn("h-full w-full", screenEnabled ? "object-contain" : "object-cover", !videoEnabled && "invisible")}
       />
 
       {!videoEnabled && (
@@ -42,12 +43,15 @@ export function VideoTile({ stream, label, isSelf = false, audioEnabled, videoEn
         <span className="truncate text-xs font-semibold text-white">
           {label}
           {isSelf && " (you)"}
+          {screenEnabled && " - Screen"}
         </span>
+        <div className="flex items-center gap-1">
         {!audioEnabled && (
           <span className="rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
             Muted
           </span>
         )}
+        </div>
       </div>
     </div>
   );

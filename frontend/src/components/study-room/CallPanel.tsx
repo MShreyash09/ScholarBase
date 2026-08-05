@@ -24,6 +24,8 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
     leaveCall,
     toggleAudio,
     toggleVideo,
+    toggleScreenShare,
+    screenEnabled,
   } = media;
 
   const peersInCall = participants.filter((p) => p.inCall);
@@ -48,8 +50,11 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
               <Button variant="outline" size="sm" onClick={toggleAudio}>
                 {audioEnabled ? "Mute" : "Unmute"}
               </Button>
-              <Button variant="outline" size="sm" onClick={toggleVideo} disabled={!hasVideoTrack}>
+              <Button variant="outline" size="sm" onClick={toggleVideo} disabled={!hasVideoTrack && !screenEnabled}>
                 {videoEnabled ? "Turn camera off" : "Turn camera on"}
+              </Button>
+              <Button variant="outline" size="sm" onClick={toggleScreenShare} className={screenEnabled ? "bg-primary-100 text-primary-700 hover:bg-primary-200" : ""}>
+                {screenEnabled ? "Stop sharing" : "Share screen"}
               </Button>
               <Button variant="secondary" size="sm" onClick={leaveCall}>
                 Leave call
@@ -72,7 +77,8 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
             label={self?.fullName ?? "You"}
             isSelf
             audioEnabled={audioEnabled}
-            videoEnabled={videoEnabled}
+            videoEnabled={videoEnabled || screenEnabled}
+            screenEnabled={screenEnabled}
           />
           {peersInCall.map((peer) => (
             <VideoTile
@@ -80,7 +86,8 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
               stream={remoteStreams[peer.socketId] ?? null}
               label={peer.fullName}
               audioEnabled={peer.audioEnabled}
-              videoEnabled={peer.videoEnabled && Boolean(remoteStreams[peer.socketId])}
+              videoEnabled={(peer.videoEnabled || peer.screenEnabled) && Boolean(remoteStreams[peer.socketId])}
+              screenEnabled={peer.screenEnabled}
             />
           ))}
         </div>

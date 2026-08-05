@@ -82,6 +82,7 @@ export interface StudyRoomParticipantDto {
   inCall: boolean;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  screenEnabled: boolean;
 }
 
 /** Events the browser sends to the server. */
@@ -183,6 +184,7 @@ export interface MediaStatePayload {
   inCall: boolean;
   audioEnabled: boolean;
   videoEnabled: boolean;
+  screenEnabled: boolean;
 }
 
 export interface MediaStateBroadcastPayload extends MediaStatePayload {

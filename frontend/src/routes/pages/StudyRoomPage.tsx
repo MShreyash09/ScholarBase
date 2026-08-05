@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { studyRoomsApi } from "@/lib/api/study-rooms";
@@ -23,6 +23,7 @@ const STATUS_LABEL: Record<string, string> = {
 export function StudyRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { user } = useAuth();
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   const roomQuery = useQuery({
     queryKey: ["study-room", roomId],
@@ -105,6 +106,9 @@ export function StudyRoomPage() {
           {roomQuery.data?.inviteCode && (
             <CopyInviteButton inviteCode={roomQuery.data.inviteCode} />
           )}
+          <Button variant="outline" size="sm" onClick={() => setIsChatOpen(!isChatOpen)}>
+            {isChatOpen ? "Hide chat" : "Show chat"}
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link to="/study-rooms">Leave room</Link>
           </Button>
@@ -120,58 +124,62 @@ export function StudyRoomPage() {
         </div>
       )}
 
-      <Card className="p-4">
-        <CallPanel
-          media={media}
-          self={self}
-          participants={participants}
-          disabled={status !== "connected"}
-        />
-      </Card>
+      <div className="flex flex-col lg:flex-row gap-4 items-start">
+        <div className="flex-1 flex flex-col gap-4 w-full min-w-0">
+          <Card className="p-4">
+            <CallPanel
+              media={media}
+              self={self}
+              participants={participants}
+              disabled={status !== "connected"}
+            />
+          </Card>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
-        <Card className="flex h-[calc(100vh-16rem)] min-h-[420px] flex-col overflow-hidden">
-          <ChatPanel
-            messages={messages}
-            currentUserId={user?.id}
-            typingNames={typingNames}
-            disabled={status !== "connected"}
-            onSend={sendMessage}
-            onTyping={setTyping}
-          />
-        </Card>
-
-        <Card className="h-fit p-4">
-          <h2 className="text-sm font-bold text-neutral-800">
-            In this room ({everyone.length})
-          </h2>
-          <ul className="mt-3 space-y-2">
-            {everyone.map((participant) => (
-              <li key={participant.socketId} className="flex items-center gap-2 text-sm">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-700">
-                  {participant.fullName.charAt(0).toUpperCase()}
-                </span>
-                <span className="flex-1 truncate text-neutral-700">
-                  {participant.fullName}
-                  {participant.socketId === self?.socketId && (
-                    <span className="text-neutral-400"> (you)</span>
+          <Card className="h-fit p-4">
+            <h2 className="text-sm font-bold text-neutral-800">
+              In this room ({everyone.length})
+            </h2>
+            <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {everyone.map((participant) => (
+                <li key={participant.socketId} className="flex items-center gap-2 text-sm">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-700">
+                    {participant.fullName.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="flex-1 truncate text-neutral-700">
+                    {participant.fullName}
+                    {participant.socketId === self?.socketId && (
+                      <span className="text-neutral-400"> (you)</span>
+                    )}
+                  </span>
+                  {participant.isModerator && (
+                    <Badge variant="default" title="An admin present for moderation">
+                      Mod
+                    </Badge>
                   )}
-                </span>
-                {participant.isModerator && (
-                  <Badge variant="default" title="An admin present for moderation">
-                    Moderator
-                  </Badge>
-                )}
-                {(participant.socketId === self?.socketId ? media.inCall : participant.inCall) && (
-                  <Badge variant="success">on call</Badge>
-                )}
-              </li>
-            ))}
-            {everyone.length === 0 && (
-              <li className="text-sm text-neutral-400">Nobody here yet.</li>
-            )}
-          </ul>
-        </Card>
+                  {(participant.socketId === self?.socketId ? media.inCall : participant.inCall) && (
+                    <Badge variant="success">on call</Badge>
+                  )}
+                </li>
+              ))}
+              {everyone.length === 0 && (
+                <li className="text-sm text-neutral-400 col-span-full">Nobody here yet.</li>
+              )}
+            </ul>
+          </Card>
+        </div>
+
+        {isChatOpen && (
+          <Card className="w-full lg:w-[340px] xl:w-[400px] shrink-0 flex h-[calc(100vh-12rem)] min-h-[420px] flex-col overflow-hidden sticky top-4">
+            <ChatPanel
+              messages={messages}
+              currentUserId={user?.id}
+              typingNames={typingNames}
+              disabled={status !== "connected"}
+              onSend={sendMessage}
+              onTyping={setTyping}
+            />
+          </Card>
+        )}
       </div>
     </div>
   );

@@ -82,7 +82,7 @@ export class StudyRoomsPresence {
   updateMediaState(
     roomId: string,
     socketId: string,
-    state: { inCall: boolean; audioEnabled: boolean; videoEnabled: boolean },
+    state: { inCall: boolean; audioEnabled: boolean; videoEnabled: boolean; screenEnabled: boolean },
   ): StudyRoomParticipantDto | undefined {
     const participant = this.rooms.get(roomId)?.get(socketId);
     if (!participant) return undefined;
@@ -90,6 +90,7 @@ export class StudyRoomsPresence {
     participant.inCall = state.inCall;
     participant.audioEnabled = state.audioEnabled;
     participant.videoEnabled = state.videoEnabled;
+    participant.screenEnabled = state.screenEnabled;
     return participant;
   }
 }
