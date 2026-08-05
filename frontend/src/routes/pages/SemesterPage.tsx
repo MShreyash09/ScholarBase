@@ -10,10 +10,9 @@ import { Badge } from "@/components/ui/badge";
 
 const EXAM_TYPE_LABELS = ["Unit Test", "End Term"];
 
-function PaperRow({ subject, paper }: { subject: SubjectDto; paper: QuestionPaperDto | undefined }) {
-  const download = async () => {
-    if (!paper) return;
-    const { url } = await papersApi.getDownloadUrl(paper.id);
+function PaperRow({ subject, papers }: { subject: SubjectDto; papers: QuestionPaperDto[] }) {
+  const download = async (id: string) => {
+    const { url } = await papersApi.getDownloadUrl(id);
     window.location.href = url;
   };
 
@@ -23,13 +22,17 @@ function PaperRow({ subject, paper }: { subject: SubjectDto; paper: QuestionPape
         <p className="font-semibold text-neutral-800">{subject.name}</p>
         <p className="text-xs text-neutral-500">{subject.code}</p>
       </div>
-      {paper ? (
-        <Button size="sm" onClick={download}>
-          Download
-        </Button>
-      ) : (
-        <Badge variant="muted">Not uploaded yet</Badge>
-      )}
+      <div className="flex flex-wrap gap-2 justify-end">
+        {papers.length > 0 ? (
+          papers.map((p) => (
+            <Button key={p.id} size="sm" onClick={() => download(p.id)}>
+              {p.academicYear}
+            </Button>
+          ))
+        ) : (
+          <Badge variant="muted">Not uploaded yet</Badge>
+        )}
+      </div>
     </div>
   );
 }
@@ -101,11 +104,11 @@ export function SemesterPage() {
                 </CardHeader>
                 <CardContent>
                   {subjects.map((subject) => {
-                    const papers = papersBySubject.get(subject.id) ?? [];
-                    const paper = examTypeId
-                      ? papers.find((p) => p.examTypeId === examTypeId)
-                      : undefined;
-                    return <PaperRow key={subject.id} subject={subject} paper={paper} />;
+                    const allPapers = papersBySubject.get(subject.id) ?? [];
+                    const papersForExam = examTypeId
+                      ? allPapers.filter((p) => p.examTypeId === examTypeId)
+                      : [];
+                    return <PaperRow key={subject.id} subject={subject} papers={papersForExam} />;
                   })}
                 </CardContent>
               </Card>
