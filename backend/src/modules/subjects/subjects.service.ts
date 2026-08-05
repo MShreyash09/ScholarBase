@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
-import { Subject } from "@prisma/client";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { Prisma, Subject } from "@prisma/client";
 import { SubjectDto } from "@scholarbase/shared-types";
 import { PrismaService } from "../../prisma/prisma.service";
 import { CreateSubjectBodyDto } from "./dto/create-subject.dto";
@@ -29,14 +29,28 @@ export class SubjectsService {
   }
 
   async create(dto: CreateSubjectBodyDto): Promise<SubjectDto> {
-    const row = await this.prisma.subject.create({ data: dto });
-    return this.toDto(row);
+    try {
+      const row = await this.prisma.subject.create({ data: dto });
+      return this.toDto(row);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException("A subject with this code already exists in this year level.");
+      }
+      throw error;
+    }
   }
 
   async update(id: string, dto: UpdateSubjectBodyDto): Promise<SubjectDto> {
     await this.findOne(id);
-    const row = await this.prisma.subject.update({ where: { id }, data: dto });
-    return this.toDto(row);
+    try {
+      const row = await this.prisma.subject.update({ where: { id }, data: dto });
+      return this.toDto(row);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ConflictException("A subject with this code already exists in this year level.");
+      }
+      throw error;
+    }
   }
 
   async remove(id: string): Promise<void> {
