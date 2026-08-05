@@ -39,6 +39,8 @@ export const SubjectCombobox = forwardRef<SubjectComboboxHandle, SubjectCombobox
     const [text, setText] = useState("");
     const [yearLevelId, setYearLevelId] = useState("");
     const [code, setCode] = useState("");
+    const [semester, setSemester] = useState("");
+    const [department, setDepartment] = useState("");
     const [error, setError] = useState<string | null>(null);
 
     const match = useMemo(() => {
@@ -59,6 +61,8 @@ export const SubjectCombobox = forwardRef<SubjectComboboxHandle, SubjectCombobox
         setText("");
         setYearLevelId("");
         setCode("");
+        setSemester("");
+        setDepartment("");
         setError(null);
       },
       resolve: async () => {
@@ -88,7 +92,13 @@ export const SubjectCombobox = forwardRef<SubjectComboboxHandle, SubjectCombobox
         if (existing) return existing.id;
 
         try {
-          const created = await subjectsApi.create({ yearLevelId, code: finalCode, name });
+          const created = await subjectsApi.create({ 
+            yearLevelId, 
+            code: finalCode, 
+            name,
+            semester: semester ? Number(semester) : undefined,
+            department: department.trim() || undefined,
+          });
           await queryClient.invalidateQueries({ queryKey: ["subjects"] });
           return created.id;
         } catch {
@@ -136,11 +146,26 @@ export const SubjectCombobox = forwardRef<SubjectComboboxHandle, SubjectCombobox
               ))}
             </select>
             <input
-              className="h-8 w-32 rounded border border-muted bg-surface px-2 text-xs"
+              className="h-8 w-24 rounded border border-muted bg-surface px-2 text-xs"
               placeholder="Code (optional)"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               aria-label="Code for new subject"
+            />
+            <input
+              className="h-8 w-24 rounded border border-muted bg-surface px-2 text-xs"
+              type="number"
+              placeholder="Semester"
+              value={semester}
+              onChange={(e) => setSemester(e.target.value)}
+              aria-label="Semester for new subject"
+            />
+            <input
+              className="h-8 w-24 rounded border border-muted bg-surface px-2 text-xs"
+              placeholder="Department"
+              value={department}
+              onChange={(e) => setDepartment(e.target.value)}
+              aria-label="Department for new subject"
             />
           </div>
         )}

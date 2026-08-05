@@ -55,13 +55,23 @@ export function AdminPage() {
   const [subjectYearLevelId, setSubjectYearLevelId] = useState("");
   const [subjectCode, setSubjectCode] = useState("");
   const [subjectName, setSubjectName] = useState("");
+  const [subjectSemester, setSubjectSemester] = useState("");
+  const [subjectDepartment, setSubjectDepartment] = useState("");
   const createSubject = useMutation({
     mutationFn: () =>
-      subjectsApi.create({ yearLevelId: subjectYearLevelId, code: subjectCode, name: subjectName }),
+      subjectsApi.create({ 
+        yearLevelId: subjectYearLevelId, 
+        code: subjectCode, 
+        name: subjectName,
+        semester: subjectSemester ? Number(subjectSemester) : undefined,
+        department: subjectDepartment.trim() || undefined,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["subjects"] });
       setSubjectCode("");
       setSubjectName("");
+      setSubjectSemester("");
+      setSubjectDepartment("");
     },
   });
 
@@ -203,6 +213,7 @@ export function AdminPage() {
             ))}
           </select>
           <Input
+            className="w-24"
             placeholder="Code, e.g. CS201"
             value={subjectCode}
             onChange={(e) => setSubjectCode(e.target.value)}
@@ -213,6 +224,19 @@ export function AdminPage() {
             value={subjectName}
             onChange={(e) => setSubjectName(e.target.value)}
             required
+          />
+          <Input
+            className="w-24"
+            type="number"
+            placeholder="Sem"
+            value={subjectSemester}
+            onChange={(e) => setSubjectSemester(e.target.value)}
+          />
+          <Input
+            className="w-32"
+            placeholder="Department"
+            value={subjectDepartment}
+            onChange={(e) => setSubjectDepartment(e.target.value)}
           />
           <Button type="submit" disabled={createSubject.isPending}>
             Add
