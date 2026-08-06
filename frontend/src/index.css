@@ -9,13 +9,37 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-surface text-neutral-900 font-sans antialiased;
+  :root {
+    --surface: #ffffff;
+    --surface-hover: #f9fafb;
+    --muted: #f3f4f6;
+    --foreground: #111827;
+    --foreground-muted: #6b7280;
+    --border: #e5e7eb;
+    
+    /* Slight background pattern */
+    --bg-pattern: radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0);
   }
 
-  h1,
-  h2,
-  h3 {
-    @apply font-extrabold;
+  .dark {
+    --surface: #0f111a;
+    --surface-hover: #1e202a;
+    --muted: #1f2937;
+    --foreground: #f9fafb;
+    --foreground-muted: #9ca3af;
+    --border: #374151;
+    
+    /* Dark mode background pattern */
+    --bg-pattern: radial-gradient(circle at 1px 1px, #374151 1px, transparent 0);
+  }
+
+  body {
+    @apply bg-surface text-foreground font-sans antialiased transition-colors duration-300;
+    background-image: var(--bg-pattern);
+    background-size: 24px 24px;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-extrabold tracking-tight;
   }
 }
