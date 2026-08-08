@@ -30,12 +30,36 @@ export class StorageService implements OnModuleInit {
     };
   }
 
+  /**
+   * Best-effort bucket bootstrap. Object storage being unreachable or a key
+   * lacking createBucket rights must NOT prevent the app from booting — this
+   * used to throw out of onModuleInit, which Nest turns into an unhandled
+   * rejection that kills the process *after* routes are mapped, taking chat and
+   * study rooms down with it over a storage problem they don't depend on.
+   *
+   * Bucket auto-creation is also off by default now: on a hosted S3 provider
+   * (B2/R2) buckets are created out-of-band, and a bucket-scoped application key
+   * returns 403 from bucketExists — which we can't distinguish from "missing" —
+   * and then makeBucket fails. Set STORAGE_MANAGE_BUCKETS=true for local MinIO.
+   */
   async onModuleInit() {
+    if (this.config.get<string>("STORAGE_MANAGE_BUCKETS", "false") !== "true") {
+      return;
+    }
+
     for (const bucket of Object.values(this.bucketNames)) {
-      const exists = await this.client.bucketExists(bucket).catch(() => false);
-      if (!exists) {
-        await this.client.makeBucket(bucket);
-        this.logger.log(`Created MinIO bucket "${bucket}"`);
+      try {
+        const exists = await this.client.bucketExists(bucket).catch(() => false);
+        if (!exists) {
+          await this.client.makeBucket(bucket);
+          this.logger.log(`Created bucket "${bucket}"`);
+        }
+      } catch (err) {
+        this.logger.error(
+          `Could not ensure bucket "${bucket}" exists — uploads and downloads for it will fail until this is fixed. ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        );
       }
     }
   }

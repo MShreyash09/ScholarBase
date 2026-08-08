@@ -278,10 +278,26 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
       screenEnabled: Boolean(payload.screenEnabled),
     };
 
+    // One screen share per room. The client disables its own button, but that
+    // is only a courtesy — two people can still hit "Share" in the same instant,
+    // and a hand-crafted socket frame ignores the UI entirely.
+    if (state.screenEnabled) {
+      if (!this.presence.claimPresenter(roomId, client.id)) {
+        state.screenEnabled = false;
+        this.fail(client, "Someone else is already sharing their screen.");
+      }
+    } else {
+      this.presence.releasePresenter(roomId, client.id);
+    }
+
     const participant = this.presence.updateMediaState(roomId, client.id, state);
     if (!participant) return;
 
-    client.to(roomId).emit(StudyRoomServerEvent.MEDIA_STATE, {
+    // Broadcast to the whole room including the sender, so a client whose screen
+    // share was rejected converges on the corrected state instead of believing
+    // it is presenting. Clients ignore media state about their own socket except
+    // for this field.
+    this.server.to(roomId).emit(StudyRoomServerEvent.MEDIA_STATE, {
       roomId,
       socketId: client.id,
       userId: participant.userId,

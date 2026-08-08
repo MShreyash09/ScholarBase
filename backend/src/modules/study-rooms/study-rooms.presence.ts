@@ -14,6 +14,17 @@ import { StudyRoomParticipantDto } from "@scholarbase/shared-types";
 export class StudyRoomsPresence {
   private readonly rooms = new Map<string, Map<string, StudyRoomParticipantDto>>();
 
+  /**
+   * roomId -> socketId of the one participant allowed to share their screen.
+   *
+   * Calls are a full mesh, so every screen share is uploaded once per peer. Two
+   * people sharing 720p at the same time in a room of four is four extra
+   * uploads for no benefit nobody asked for — a study room has one presenter.
+   * Held here rather than derived from `screenEnabled` flags so that the claim
+   * is decided by one authority instead of racing between clients.
+   */
+  private readonly presenters = new Map<string, string>();
+
   add(roomId: string, participant: StudyRoomParticipantDto): void {
     let room = this.rooms.get(roomId);
     if (!room) {
@@ -23,14 +34,43 @@ export class StudyRoomsPresence {
     room.set(participant.socketId, participant);
   }
 
+  /**
+   * Takes the room's single screen-share slot. Succeeds if it is free, already
+   * held by this socket, or held by a socket that is no longer in the room —
+   * that last case matters because a presenter whose tab crashed never sends a
+   * "stopped sharing" event, and without it the slot would be held forever.
+   */
+  claimPresenter(roomId: string, socketId: string): boolean {
+    const current = this.presenters.get(roomId);
+    if (current && current !== socketId && this.rooms.get(roomId)?.has(current)) {
+      return false;
+    }
+    this.presenters.set(roomId, socketId);
+    return true;
+  }
+
+  /** No-op unless this socket actually holds the slot, so a late "stopped
+   * sharing" from a previous presenter can't evict the current one. */
+  releasePresenter(roomId: string, socketId: string): void {
+    if (this.presenters.get(roomId) === socketId) {
+      this.presenters.delete(roomId);
+    }
+  }
+
+  currentPresenter(roomId: string): string | undefined {
+    return this.presenters.get(roomId);
+  }
+
   remove(roomId: string, socketId: string): StudyRoomParticipantDto | undefined {
     const room = this.rooms.get(roomId);
     if (!room) return undefined;
 
     const participant = room.get(socketId);
     room.delete(socketId);
+    this.releasePresenter(roomId, socketId);
     if (room.size === 0) {
       this.rooms.delete(roomId);
+      this.presenters.delete(roomId);
     }
     return participant;
   }
@@ -44,8 +84,10 @@ export class StudyRoomsPresence {
       if (participant) {
         removed.push({ roomId, participant });
         room.delete(socketId);
+        this.releasePresenter(roomId, socketId);
         if (room.size === 0) {
           this.rooms.delete(roomId);
+          this.presenters.delete(roomId);
         }
       }
     }
@@ -56,6 +98,7 @@ export class StudyRoomsPresence {
   /** Drops the whole room's presence at once — used when a room is closed. */
   clearRoom(roomId: string): void {
     this.rooms.delete(roomId);
+    this.presenters.delete(roomId);
   }
 
   get(roomId: string, socketId: string): StudyRoomParticipantDto | undefined {
