@@ -127,6 +127,7 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
                 inCall: payload.inCall,
                 audioEnabled: payload.audioEnabled,
                 videoEnabled: payload.videoEnabled,
+                screenEnabled: payload.screenEnabled,
               }
             : p,
         ),

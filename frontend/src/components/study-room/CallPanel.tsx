@@ -18,7 +18,6 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
     remoteStreams,
     audioEnabled,
     videoEnabled,
-    hasVideoTrack,
     mediaError,
     joinCall,
     leaveCall,
@@ -29,6 +28,11 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
   } = media;
 
   const peersInCall = participants.filter((p) => p.inCall);
+  // `participants` is everyone *else* (the server snapshots peers before adding
+  // self), so this is exactly "somebody other than me is presenting". Only one
+  // screen share is allowed per room — the server enforces it, this just avoids
+  // sending the user through the OS picker only to be rejected afterwards.
+  const someoneElsePresenting = participants.some((p) => p.screenEnabled);
 
   return (
     <div className="flex flex-col gap-3">
@@ -50,10 +54,21 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
               <Button variant="outline" size="sm" onClick={toggleAudio}>
                 {audioEnabled ? "Mute" : "Unmute"}
               </Button>
-              <Button variant="outline" size="sm" onClick={toggleVideo} disabled={!hasVideoTrack && !screenEnabled}>
+              <Button variant="outline" size="sm" onClick={() => void toggleVideo()}>
                 {videoEnabled ? "Turn camera off" : "Turn camera on"}
               </Button>
-              <Button variant="outline" size="sm" onClick={toggleScreenShare} className={screenEnabled ? "bg-primary-100 text-primary-700 hover:bg-primary-200" : ""}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void toggleScreenShare()}
+                disabled={someoneElsePresenting && !screenEnabled}
+                title={
+                  someoneElsePresenting && !screenEnabled
+                    ? "Someone else is sharing their screen"
+                    : undefined
+                }
+                className={screenEnabled ? "bg-primary-100 text-primary-700 hover:bg-primary-200" : ""}
+              >
                 {screenEnabled ? "Stop sharing" : "Share screen"}
               </Button>
               <Button variant="secondary" size="sm" onClick={leaveCall}>
@@ -61,8 +76,8 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
               </Button>
             </>
           ) : (
-            <Button size="sm" onClick={joinCall} disabled={disabled || isStarting}>
-              {isStarting ? "Starting..." : "Join audio & video"}
+            <Button size="sm" onClick={() => void joinCall()} disabled={disabled || isStarting}>
+              {isStarting ? "Starting..." : "Join with audio"}
             </Button>
           )}
         </div>
