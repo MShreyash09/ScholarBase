@@ -3,7 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#850013" />
+    <meta
+      name="description"
+      content="Previous year question papers, shared notes and live study rooms for your department."
+    />
     <title>ScholarBase</title>
+    <!--
+      Runs before first paint so a dark-mode user never sees a white flash.
+      Must stay inline and synchronous in <head>; moving it into the bundle
+      reintroduces the flash because the module loads after the first paint.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("scholarbase-theme");
+          var dark =
+            stored === "dark" ||
+            (stored === null &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+        } catch (e) {
+          /* private mode / storage blocked — fall back to light */
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

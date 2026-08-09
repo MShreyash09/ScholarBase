@@ -15,7 +15,7 @@ export function DepartmentPage() {
   return (
     <div>
       <h1 className="mb-2 text-3xl">{department.label}</h1>
-      <p className="mb-8 text-neutral-500">Choose your year.</p>
+      <p className="mb-8 text-foreground-muted">Choose your year.</p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {YEAR_NUMBERS.map((year) => (

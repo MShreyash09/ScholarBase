@@ -44,7 +44,7 @@ export function SubjectPage() {
   return (
     <div>
       <h1 className="mb-1 text-3xl">{subject?.name ?? "Subject"}</h1>
-      <p className="mb-8 text-neutral-500">{subject?.code}</p>
+      <p className="mb-8 text-foreground-muted">{subject?.code}</p>
 
       <Tabs defaultValue="papers">
         <TabsList>
@@ -54,7 +54,7 @@ export function SubjectPage() {
 
         <TabsContent value="papers">
           {papers?.length === 0 && (
-            <p className="text-neutral-500">No question papers uploaded for this subject yet.</p>
+            <p className="text-foreground-muted">No question papers uploaded for this subject yet.</p>
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {papers?.map((paper) => (
@@ -75,7 +75,7 @@ export function SubjectPage() {
 
         <TabsContent value="notes">
           {notes?.length === 0 && (
-            <p className="text-neutral-500">No notes uploaded for this subject yet.</p>
+            <p className="text-foreground-muted">No notes uploaded for this subject yet.</p>
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {notes?.map((note) => (

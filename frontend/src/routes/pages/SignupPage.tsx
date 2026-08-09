@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 
 export function SignupPage() {
@@ -36,37 +36,53 @@ export function SignupPage() {
       <Card>
         <CardHeader>
           <CardTitle>Create your account</CardTitle>
+          <CardDescription>Use your college email to get access.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-            <Input
-              placeholder="Full name"
+            <Field
+              label="Full name"
+              name="fullName"
+              autoComplete="name"
+              placeholder="Priya Sharma"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
             />
-            <Input
+            <Field
+              label="Email"
+              name="email"
               type="email"
+              autoComplete="email"
               placeholder="you@youruniversity.edu.in"
+              hint="Sign-up is limited to approved college domains."
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <Input
+            <Field
+              label="Password"
+              name="password"
               type="password"
-              placeholder="Password (min 8 characters)"
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              hint="Minimum 8 characters."
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               minLength={8}
               required
             />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && (
+              <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm font-medium text-danger">
+                {error}
+              </p>
+            )}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Creating account..." : "Sign up"}
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-neutral-500">
-            Already have an account? <Link to="/login" className="font-semibold text-primary-700">Log in</Link>
+          <p className="mt-4 text-center text-sm text-foreground-muted">
+            Already have an account? <Link to="/login" className="font-semibold text-brand">Log in</Link>
           </p>
         </CardContent>
       </Card>

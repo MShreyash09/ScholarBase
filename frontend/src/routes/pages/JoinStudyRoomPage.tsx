@@ -36,7 +36,7 @@ export function JoinStudyRoomPage() {
     return (
       <Card className="mx-auto max-w-md">
         <CardContent className="p-8 text-center">
-          <p className="text-sm text-neutral-600">{error}</p>
+          <p className="text-sm text-foreground-muted">{error}</p>
           <Button asChild className="mt-4">
             <Link to="/study-rooms">Back to study rooms</Link>
           </Button>
@@ -45,5 +45,5 @@ export function JoinStudyRoomPage() {
     );
   }
 
-  return <p className="text-center text-sm text-neutral-500">Opening the study room...</p>;
+  return <p className="text-center text-sm text-foreground-muted">Opening the study room...</p>;
 }

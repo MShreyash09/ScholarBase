@@ -156,7 +156,7 @@ export function AdminPage() {
       <h1 className="text-3xl">Admin</h1>
 
       <Section title="Study rooms">
-        <p className="mb-2 text-sm text-neutral-500">
+        <p className="mb-2 text-sm text-foreground-muted">
           Every open room, including private ones. Closing a room ends the session and removes
           everyone from it.
         </p>
@@ -200,7 +200,7 @@ export function AdminPage() {
           }}
         >
           <select
-            className="h-10 rounded-lg border border-muted px-3 text-sm"
+            className="h-10 rounded-lg border border-control bg-surface px-3 text-sm text-foreground"
             value={subjectYearLevelId}
             onChange={(e) => setSubjectYearLevelId(e.target.value)}
             required
@@ -270,7 +270,7 @@ export function AdminPage() {
             <SubjectCombobox ref={paperSubjectRef} subjects={allSubjects} yearLevels={yearLevels ?? []} />
           </div>
           <select
-            className="h-10 rounded-lg border border-muted px-3 text-sm"
+            className="h-10 rounded-lg border border-control bg-surface px-3 text-sm text-foreground"
             value={paperExamTypeId}
             onChange={(e) => setPaperExamTypeId(e.target.value)}
             required
@@ -300,7 +300,7 @@ export function AdminPage() {
           </Button>
         </form>
         {uploadPaper.isError && (
-          <p className="mt-2 text-sm text-red-600">Upload failed — check the file and try again.</p>
+          <p className="mt-2 text-sm text-danger">Upload failed — check the file and try again.</p>
         )}
       </Section>
 
@@ -321,7 +321,7 @@ export function AdminPage() {
           </Button>
         </form>
         {uploadNote.isError && (
-          <p className="mt-2 text-sm text-red-600">Upload failed — check the file and try again.</p>
+          <p className="mt-2 text-sm text-danger">Upload failed — check the file and try again.</p>
         )}
       </Section>
     </div>

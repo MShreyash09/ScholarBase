@@ -21,12 +21,42 @@ export default {
           800: "#6e0011",
           900: "#5c0010",
         },
-        surface: "var(--surface)",
-        surfaceHover: "var(--surface-hover)",
+        // Nested DEFAULT/variant shape on purpose. These were previously flat
+        // camelCase keys (`foregroundMuted`), which Tailwind emits as
+        // `text-foregroundMuted` — but every call site writes the kebab-case
+        // `text-foreground-muted`, so the class was never generated and all
+        // "muted" text silently rendered at full foreground weight. Nesting
+        // makes the kebab names real instead of rewriting every call site.
+        background: "var(--background)",
+        brand: "var(--brand-text)",
+        surface: {
+          DEFAULT: "var(--surface)",
+          hover: "var(--surface-hover)",
+        },
         muted: "var(--muted)",
-        foreground: "var(--foreground)",
-        foregroundMuted: "var(--foreground-muted)",
+        foreground: {
+          DEFAULT: "var(--foreground)",
+          muted: "var(--foreground-muted)",
+          subtle: "var(--foreground-subtle)",
+        },
         border: "var(--border)",
+        control: "var(--border-control)",
+        success: {
+          DEFAULT: "var(--success)",
+          bg: "var(--success-bg)",
+        },
+        warning: {
+          DEFAULT: "var(--warning)",
+          bg: "var(--warning-bg)",
+        },
+        danger: {
+          DEFAULT: "var(--danger)",
+          bg: "var(--danger-bg)",
+        },
+      },
+      boxShadow: {
+        card: "var(--shadow-card)",
+        "card-hover": "var(--shadow-card-hover)",
       },
       fontFamily: {
         sans: ["Poppins", "ui-sans-serif", "system-ui", "sans-serif"],

@@ -56,7 +56,7 @@ export function StudyRoomPage() {
   if (roomQuery.isError) {
     return (
       <Card className="p-8 text-center">
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-foreground-muted">
           This study room is not available. Private rooms need an invite link.
         </p>
         <Button asChild className="mt-4">
@@ -69,8 +69,8 @@ export function StudyRoomPage() {
   if (closedMessage) {
     return (
       <Card className="mx-auto max-w-md p-8 text-center">
-        <p className="text-sm font-semibold text-neutral-800">{closedMessage}</p>
-        <p className="mt-1 text-sm text-neutral-500">The session has ended.</p>
+        <p className="text-sm font-semibold text-foreground">{closedMessage}</p>
+        <p className="mt-1 text-sm text-foreground-muted">The session has ended.</p>
         <Button asChild className="mt-4">
           <Link to="/study-rooms">Back to study rooms</Link>
         </Button>
@@ -85,21 +85,21 @@ export function StudyRoomPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-extrabold text-primary-700">
+            <h1 className="text-2xl font-extrabold text-brand">
               {roomQuery.data?.name ?? "Study room"}
             </h1>
             <Badge variant={status === "connected" ? "success" : "muted"}>
               <span
                 className={cn(
                   "mr-1.5 inline-block h-1.5 w-1.5 rounded-full",
-                  status === "connected" ? "bg-green-600" : "bg-neutral-400",
+                  status === "connected" ? "bg-success" : "bg-foreground-subtle",
                 )}
               />
               {STATUS_LABEL[status]}
             </Badge>
           </div>
           {roomQuery.data?.description && (
-            <p className="mt-1 text-sm text-neutral-500">{roomQuery.data.description}</p>
+            <p className="mt-1 text-sm text-foreground-muted">{roomQuery.data.description}</p>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -115,10 +115,10 @@ export function StudyRoomPage() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       {self?.isModerator && (
-        <div className="rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+        <div className="rounded-lg border border-primary/25 bg-primary/10 px-4 py-3 text-sm text-brand">
           You joined this room as an <strong>admin moderator</strong>. Everyone here can see that
           you're present — your name shows in the participant list with a Moderator badge.
         </div>
@@ -136,19 +136,19 @@ export function StudyRoomPage() {
           </Card>
 
           <Card className="h-fit p-4">
-            <h2 className="text-sm font-bold text-neutral-800">
+            <h2 className="text-sm font-bold text-foreground">
               In this room ({everyone.length})
             </h2>
             <ul className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {everyone.map((participant) => (
                 <li key={participant.socketId} className="flex items-center gap-2 text-sm">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-xs font-bold text-primary-700">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-brand">
                     {participant.fullName.charAt(0).toUpperCase()}
                   </span>
-                  <span className="flex-1 truncate text-neutral-700">
+                  <span className="flex-1 truncate text-foreground">
                     {participant.fullName}
                     {participant.socketId === self?.socketId && (
-                      <span className="text-neutral-400"> (you)</span>
+                      <span className="text-foreground-subtle"> (you)</span>
                     )}
                   </span>
                   {participant.isModerator && (
@@ -162,7 +162,7 @@ export function StudyRoomPage() {
                 </li>
               ))}
               {everyone.length === 0 && (
-                <li className="text-sm text-neutral-400 col-span-full">Nobody here yet.</li>
+                <li className="text-sm text-foreground-subtle col-span-full">Nobody here yet.</li>
               )}
             </ul>
           </Card>

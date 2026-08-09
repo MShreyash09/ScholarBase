@@ -38,8 +38,8 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-sm font-bold text-neutral-800">Audio &amp; video</h2>
-          <p className="text-xs text-neutral-500">
+          <h2 className="text-sm font-bold text-foreground">Audio &amp; video</h2>
+          <p className="text-xs text-foreground-muted">
             {inCall
               ? `${peersInCall.length} other participant${peersInCall.length === 1 ? "" : "s"} on the call`
               : peersInCall.length > 0
@@ -67,7 +67,7 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
                     ? "Someone else is sharing their screen"
                     : undefined
                 }
-                className={screenEnabled ? "bg-primary-100 text-primary-700 hover:bg-primary-200" : ""}
+                className={screenEnabled ? "bg-primary/15 text-primary-700 hover:bg-primary/25 dark:text-primary-200" : ""}
               >
                 {screenEnabled ? "Stop sharing" : "Share screen"}
               </Button>
@@ -83,7 +83,7 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
         </div>
       </div>
 
-      {mediaError && <p className="text-xs text-amber-700">{mediaError}</p>}
+      {mediaError && <p className="text-xs text-warning">{mediaError}</p>}
 
       {inCall && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">

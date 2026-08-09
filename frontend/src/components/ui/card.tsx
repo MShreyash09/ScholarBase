@@ -1,11 +1,25 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  /**
+   * Adds the hover lift. Off by default: the lift used to apply to every card
+   * including purely static content, so read-only panels animated under the
+   * cursor for no reason. Set it on cards that are actually links or buttons.
+   */
+  interactive?: boolean;
+}
+
+const Card = React.forwardRef<HTMLDivElement, CardProps>(
+  ({ className, interactive = false, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("rounded-2xl border border-border bg-surface shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-lg dark:hover:shadow-primary/10", className)}
+      className={cn(
+        "rounded-2xl border border-border bg-surface shadow-card",
+        interactive &&
+          "transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card-hover",
+        className,
+      )}
       {...props}
     />
   ),
@@ -21,7 +35,11 @@ CardHeader.displayName = "CardHeader";
 
 const CardTitle = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h3 ref={ref} className={cn("text-lg font-bold text-primary-700 dark:text-primary-400", className)} {...props} />
+    // Titles default to foreground rather than brand maroon. Colouring every
+    // title flattens the hierarchy (everything is emphasis, so nothing is) and
+    // it also made the existing `group-hover:text-primary` on the department
+    // cards a no-op, since they already were primary.
+    <h3 ref={ref} className={cn("text-lg font-bold text-foreground", className)} {...props} />
   ),
 );
 CardTitle.displayName = "CardTitle";

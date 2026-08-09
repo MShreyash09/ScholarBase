@@ -18,7 +18,7 @@ export function DepartmentYearPage() {
       <h1 className="mb-2 text-3xl">
         {department.label} — Year {year}
       </h1>
-      <p className="mb-8 text-neutral-500">Choose a semester.</p>
+      <p className="mb-8 text-foreground-muted">Choose a semester.</p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {semesters.map((sem) => (

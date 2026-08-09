@@ -17,10 +17,10 @@ function PaperRow({ subject, papers }: { subject: SubjectDto; papers: QuestionPa
   };
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-muted py-3 last:border-b-0">
+    <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-b-0">
       <div>
-        <p className="font-semibold text-neutral-800">{subject.name}</p>
-        <p className="text-xs text-neutral-500">{subject.code}</p>
+        <p className="font-semibold text-foreground">{subject.name}</p>
+        <p className="text-xs text-foreground-muted">{subject.code}</p>
       </div>
       <div className="flex flex-wrap gap-2 justify-end">
         {papers.length > 0 ? (
@@ -76,7 +76,7 @@ export function SemesterPage() {
 
   return (
     <div>
-      <p className="mb-1 text-sm text-neutral-500">
+      <p className="mb-1 text-sm text-foreground-muted">
         <Link to={`/departments/${department.code}`} className="hover:underline">
           {department.label}
         </Link>{" "}
@@ -87,10 +87,10 @@ export function SemesterPage() {
       </p>
       <h1 className="mb-8 text-3xl">Semester {semesterNumber}</h1>
 
-      {isLoading && <p className="text-neutral-500">Loading...</p>}
+      {isLoading && <p className="text-foreground-muted">Loading...</p>}
 
       {!isLoading && (!subjects || subjects.length === 0) && (
-        <p className="text-neutral-500">No subjects added for this semester yet.</p>
+        <p className="text-foreground-muted">No subjects added for this semester yet.</p>
       )}
 
       {subjects && subjects.length > 0 && (

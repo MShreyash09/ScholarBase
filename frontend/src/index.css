@@ -9,37 +9,112 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * --background is the page; --surface is anything raised off it (cards,
+   * header, inputs). They used to be the same value, which is why cards were
+   * invisible: a white card on a white page separated only by a 1.24:1 border.
+   * Keeping them distinct is what gives the UI depth in both themes.
+   */
   :root {
+    color-scheme: light;
+
+    --background: #f6f7f9;
     --surface: #ffffff;
     --surface-hover: #f9fafb;
-    --muted: #f3f4f6;
+    --muted: #eef0f3;
     --foreground: #111827;
-    --foreground-muted: #6b7280;
-    --border: #e5e7eb;
-    
-    /* Slight background pattern */
-    --bg-pattern: radial-gradient(circle at 1px 1px, #e5e7eb 1px, transparent 0);
+    --foreground-muted: #5b6472;
+    --foreground-subtle: #8a929e;
+    --border: #e3e6ea;
+    /* Separate token for *interactive* edges (inputs, selects). WCAG 1.4.11
+       wants >=3:1 for control boundaries, which the soft --border used for
+       decorative card edges and dividers does not meet — an input outlined at
+       1.25:1 is barely perceptible. */
+    --border-control: #89929e;
+
+    /* Brand colour as *text on a surface*. The raw maroon is only legible on
+       light backgrounds, so this token carries a lightened counterpart for
+       dark rather than every call site remembering a dark: variant. */
+    --brand-text: #850013;
+
+    --success: #15803d;
+    --success-bg: #dcfce7;
+    --warning: #b45309;
+    --warning-bg: #fef3c7;
+    --danger: #b91c1c;
+    --danger-bg: #fee2e2;
+
+    --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+    --shadow-card-hover: 0 8px 24px rgb(16 24 40 / 0.10), 0 2px 6px rgb(16 24 40 / 0.06);
+
+    --bg-pattern: radial-gradient(circle at 1px 1px, #dfe3e8 1px, transparent 0);
   }
 
   .dark {
-    --surface: #0f111a;
-    --surface-hover: #1e202a;
-    --muted: #1f2937;
-    --foreground: #f9fafb;
-    --foreground-muted: #9ca3af;
-    --border: #374151;
-    
-    /* Dark mode background pattern */
-    --bg-pattern: radial-gradient(circle at 1px 1px, #374151 1px, transparent 0);
+    color-scheme: dark;
+
+    --background: #0a0c12;
+    --surface: #141824;
+    --surface-hover: #1c2130;
+    --muted: #232937;
+    --foreground: #f3f5f7;
+    --foreground-muted: #a3adbb;
+    --foreground-subtle: #78828f;
+    --border: #2a3140;
+    --border-control: #5b6675;
+
+    /* Lighter, desaturated status hues — the light-mode 700s are unreadable
+       on a dark surface. */
+    --brand-text: #eb9aa6;
+
+    --success: #4ade80;
+    --success-bg: #10261a;
+    --warning: #fbbf24;
+    --warning-bg: #2a2008;
+    --danger: #f87171;
+    --danger-bg: #2b1416;
+
+    /* Shadows barely read on dark; elevation comes from --surface being
+       lighter than --background, so keep these subtle. */
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.40);
+    --shadow-card-hover: 0 8px 24px rgb(0 0 0 / 0.55);
+
+    --bg-pattern: radial-gradient(circle at 1px 1px, #1b2130 1px, transparent 0);
   }
 
   body {
-    @apply bg-surface text-foreground font-sans antialiased transition-colors duration-300;
+    @apply bg-background text-foreground font-sans antialiased;
     background-image: var(--bg-pattern);
     background-size: 24px 24px;
   }
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-extrabold tracking-tight;
+  }
+
+  /* One consistent focus ring everywhere, offset against the page so it stays
+     visible on both light and dark surfaces. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+    --tw-ring-offset-color: var(--background);
+  }
+
+  ::selection {
+    background-color: rgb(133 0 19 / 0.18);
+  }
+}
+
+@layer utilities {
+  /* Respect users who ask for less motion — the app leans on transitions,
+     hover lifts and a fade-in-up on every route change. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

@@ -38,15 +38,15 @@ export function AdminStudyRooms() {
   };
 
   if (roomsQuery.isLoading) {
-    return <p className="text-sm text-neutral-500">Loading rooms...</p>;
+    return <p className="text-sm text-foreground-muted">Loading rooms...</p>;
   }
 
   if (roomsQuery.isError) {
-    return <p className="text-sm text-red-600">Could not load study rooms.</p>;
+    return <p className="text-sm text-danger">Could not load study rooms.</p>;
   }
 
   if (roomsQuery.data?.length === 0) {
-    return <p className="text-sm text-neutral-500">No open study rooms right now.</p>;
+    return <p className="text-sm text-foreground-muted">No open study rooms right now.</p>;
   }
 
   return (
@@ -55,7 +55,7 @@ export function AdminStudyRooms() {
         <li key={room.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-semibold text-neutral-800">{room.name}</span>
+              <span className="font-semibold text-foreground">{room.name}</span>
               <Badge variant={room.visibility === StudyRoomVisibility.PRIVATE ? "default" : "muted"}>
                 {room.visibility === StudyRoomVisibility.PRIVATE ? "Private" : "Public"}
               </Badge>
@@ -63,7 +63,7 @@ export function AdminStudyRooms() {
                 {room.participantCount} in room
               </Badge>
             </div>
-            <p className="mt-0.5 text-xs text-neutral-500">
+            <p className="mt-0.5 text-xs text-foreground-muted">
               by {room.createdByName} · opened {new Date(room.createdAt).toLocaleString()}
             </p>
           </div>

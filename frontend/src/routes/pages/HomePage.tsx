@@ -39,12 +39,14 @@ export function HomePage() {
             const Icon = getDepartmentIcon(dept.code);
             return (
               <Link key={dept.code} to={`/departments/${dept.code}`}>
-                <Card className="group h-full text-center transition-all hover:border-primary/50 hover:bg-primary/5">
+                <Card interactive className="group h-full text-center">
                   <CardHeader className="items-center">
-                    <div className="mb-3 rounded-full bg-primary/10 p-3 text-primary transition-transform group-hover:scale-110 group-hover:bg-primary/20 dark:text-primary-400">
-                      <Icon className="h-6 w-6" />
+                    <div className="mb-3 rounded-full bg-primary/10 p-3 text-primary transition-transform group-hover:scale-110 group-hover:bg-primary/20 dark:text-primary-200">
+                      <Icon className="h-6 w-6" aria-hidden="true" />
                     </div>
-                    <CardTitle className="transition-colors group-hover:text-primary">{dept.label}</CardTitle>
+                    <CardTitle className="transition-colors group-hover:text-primary dark:group-hover:text-primary-200">
+                      {dept.label}
+                    </CardTitle>
                     <CardDescription>Department</CardDescription>
                   </CardHeader>
                 </Card>

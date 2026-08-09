@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 
 export function LoginPage() {
@@ -34,30 +34,42 @@ export function LoginPage() {
       <Card>
         <CardHeader>
           <CardTitle>Log in</CardTitle>
+          <CardDescription>Welcome back — pick up where you left off.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
-            <Input
+            <Field
+              label="Email"
+              name="email"
               type="email"
+              autoComplete="email"
               placeholder="you@youruniversity.edu.in"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <Input
+            <Field
+              label="Password"
+              name="password"
               type="password"
-              placeholder="Password"
+              autoComplete="current-password"
+              placeholder="Your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {/* role=alert so the failure is announced, not just recoloured. */}
+            {error && (
+              <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm font-medium text-danger">
+                {error}
+              </p>
+            )}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Logging in..." : "Log in"}
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-neutral-500">
-            No account? <Link to="/signup" className="font-semibold text-primary-700">Sign up</Link>
+          <p className="mt-4 text-center text-sm text-foreground-muted">
+            No account? <Link to="/signup" className="font-semibold text-brand">Sign up</Link>
           </p>
         </CardContent>
       </Card>

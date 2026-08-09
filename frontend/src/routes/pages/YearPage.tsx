@@ -22,12 +22,12 @@ export function YearPage() {
   return (
     <div>
       <h1 className="mb-2 text-3xl">{yearLevel?.label ?? `Year ${yearNumber}`}</h1>
-      <p className="mb-8 text-neutral-500">Choose a subject to view its question papers and notes.</p>
+      <p className="mb-8 text-foreground-muted">Choose a subject to view its question papers and notes.</p>
 
-      {isLoading && <p className="text-neutral-500">Loading...</p>}
+      {isLoading && <p className="text-foreground-muted">Loading...</p>}
 
       {!isLoading && yearLevel && (!subjects || subjects.length === 0) && (
-        <p className="text-neutral-500">No subjects added for this year yet.</p>
+        <p className="text-foreground-muted">No subjects added for this year yet.</p>
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

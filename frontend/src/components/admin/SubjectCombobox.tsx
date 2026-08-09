@@ -130,10 +130,10 @@ export const SubjectCombobox = forwardRef<SubjectComboboxHandle, SubjectCombobox
         </datalist>
 
         {isNew && (
-          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-warning">
             <span className="font-semibold">New subject — will be created:</span>
             <select
-              className="h-8 rounded border border-muted bg-surface px-2 text-xs"
+              className="h-8 rounded border border-control bg-surface px-2 text-xs"
               value={yearLevelId}
               onChange={(e) => setYearLevelId(e.target.value)}
               aria-label="Year level for new subject"
@@ -146,14 +146,14 @@ export const SubjectCombobox = forwardRef<SubjectComboboxHandle, SubjectCombobox
               ))}
             </select>
             <input
-              className="h-8 w-24 rounded border border-muted bg-surface px-2 text-xs"
+              className="h-8 w-24 rounded border border-control bg-surface px-2 text-xs"
               placeholder="Code (optional)"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               aria-label="Code for new subject"
             />
             <input
-              className="h-8 w-24 rounded border border-muted bg-surface px-2 text-xs"
+              className="h-8 w-24 rounded border border-control bg-surface px-2 text-xs"
               type="number"
               placeholder="Semester"
               value={semester}
@@ -161,7 +161,7 @@ export const SubjectCombobox = forwardRef<SubjectComboboxHandle, SubjectCombobox
               aria-label="Semester for new subject"
             />
             <input
-              className="h-8 w-24 rounded border border-muted bg-surface px-2 text-xs"
+              className="h-8 w-24 rounded border border-control bg-surface px-2 text-xs"
               placeholder="Department"
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
@@ -170,7 +170,7 @@ export const SubjectCombobox = forwardRef<SubjectComboboxHandle, SubjectCombobox
           </div>
         )}
 
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="text-xs text-danger">{error}</p>}
       </div>
     );
   },

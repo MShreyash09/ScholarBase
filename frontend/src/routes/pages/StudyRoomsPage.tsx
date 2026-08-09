@@ -73,8 +73,8 @@ export function StudyRoomsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-extrabold text-primary-700">Study rooms</h1>
-        <p className="mt-1 text-sm text-neutral-500">
+        <h1 className="text-2xl font-extrabold text-brand">Study rooms</h1>
+        <p className="mt-1 text-sm text-foreground-muted">
           Live rooms for group revision — chat with everyone in the room, then turn on audio and
           video when you want to talk it through.
         </p>
@@ -83,7 +83,7 @@ export function StudyRoomsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Join with an invite link</CardTitle>
-          <p className="text-sm text-neutral-500">
+          <p className="text-sm text-foreground-muted">
             Someone shared a private room with you? Paste their link here.
           </p>
         </CardHeader>
@@ -102,7 +102,7 @@ export function StudyRoomsPage() {
               {joinByInvite.isPending ? "Joining..." : "Join room"}
             </Button>
           </form>
-          {inviteError && <p className="mt-3 text-sm text-red-600">{inviteError}</p>}
+          {inviteError && <p className="mt-3 text-sm text-danger">{inviteError}</p>}
         </CardContent>
       </Card>
 
@@ -136,7 +136,7 @@ export function StudyRoomsPage() {
 
             <fieldset className="flex flex-wrap items-center gap-4">
               <legend className="sr-only">Who can join</legend>
-              <label className="flex items-center gap-2 text-sm text-neutral-600">
+              <label className="flex items-center gap-2 text-sm text-foreground-muted">
                 <input
                   type="radio"
                   name="visibility"
@@ -146,7 +146,7 @@ export function StudyRoomsPage() {
                 />
                 Private — only people with the invite link
               </label>
-              <label className="flex items-center gap-2 text-sm text-neutral-600">
+              <label className="flex items-center gap-2 text-sm text-foreground-muted">
                 <input
                   type="radio"
                   name="visibility"
@@ -158,19 +158,19 @@ export function StudyRoomsPage() {
               </label>
             </fieldset>
           </form>
-          {formError && <p className="mt-3 text-sm text-red-600">{formError}</p>}
+          {formError && <p className="mt-3 text-sm text-danger">{formError}</p>}
         </CardContent>
       </Card>
 
-      {roomsQuery.isLoading && <p className="text-sm text-neutral-500">Loading rooms...</p>}
+      {roomsQuery.isLoading && <p className="text-sm text-foreground-muted">Loading rooms...</p>}
 
       {roomsQuery.isError && (
-        <p className="text-sm text-red-600">Could not load study rooms. Try refreshing.</p>
+        <p className="text-sm text-danger">Could not load study rooms. Try refreshing.</p>
       )}
 
       {roomsQuery.data?.length === 0 && (
         <Card>
-          <CardContent className="p-6 text-center text-sm text-neutral-500">
+          <CardContent className="p-6 text-center text-sm text-foreground-muted">
             No rooms yet. Create one above, or paste an invite link someone sent you.
           </CardContent>
         </Card>
@@ -190,9 +190,9 @@ export function StudyRoomsPage() {
                 <Badge variant={room.visibility === StudyRoomVisibility.PRIVATE ? "default" : "muted"}>
                   {room.visibility === StudyRoomVisibility.PRIVATE ? "Private" : "Public"}
                 </Badge>
-                <span className="text-xs text-neutral-400">by {room.createdByName}</span>
+                <span className="text-xs text-foreground-subtle">by {room.createdByName}</span>
               </div>
-              {room.description && <p className="text-sm text-neutral-500">{room.description}</p>}
+              {room.description && <p className="text-sm text-foreground-muted">{room.description}</p>}
             </CardHeader>
             <CardContent className="mt-auto flex flex-wrap items-center justify-end gap-2">
               {room.inviteCode && <CopyInviteButton inviteCode={room.inviteCode} />}
