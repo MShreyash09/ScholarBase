@@ -12,6 +12,8 @@ import { YearPage } from "@/routes/pages/YearPage";
 import { SubjectPage } from "@/routes/pages/SubjectPage";
 import { LoginPage } from "@/routes/pages/LoginPage";
 import { SignupPage } from "@/routes/pages/SignupPage";
+import { ForgotPasswordPage } from "@/routes/pages/ForgotPasswordPage";
+import { ResetPasswordPage } from "@/routes/pages/ResetPasswordPage";
 import { AdminPage } from "@/routes/pages/AdminPage";
 import { StudyRoomsPage } from "@/routes/pages/StudyRoomsPage";
 import { StudyRoomPage } from "@/routes/pages/StudyRoomPage";
@@ -35,6 +37,8 @@ export default function App() {
               <Route path="years/:yearNumber/:subjectId" element={<SubjectPage />} />
               <Route path="login" element={<LoginPage />} />
               <Route path="signup" element={<SignupPage />} />
+              <Route path="forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="reset-password" element={<ResetPasswordPage />} />
               <Route element={<ProtectedRoute />}>
                 <Route path="study-rooms" element={<StudyRoomsPage />} />
                 {/* Must precede :roomId so "join" isn't swallowed as a room id. */}

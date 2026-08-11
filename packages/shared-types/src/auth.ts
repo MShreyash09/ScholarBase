@@ -31,3 +31,24 @@ export interface AuthResponseDto extends AuthTokensDto {
 export interface RefreshRequestDto {
   refreshToken: string;
 }
+
+export interface ForgotPasswordRequestDto {
+  email: string;
+}
+
+export interface ResetPasswordRequestDto {
+  token: string;
+  password: string;
+}
+
+/**
+ * Deliberately says nothing about whether the address exists. Both the "we
+ * sent it" and "no such account" cases return this identical shape, so the
+ * endpoint can't be used to enumerate which students have registered.
+ */
+export interface ForgotPasswordResponseDto {
+  message: string;
+}
+
+/** Shortest password the reset form will accept — mirrors signup. */
+export const MIN_PASSWORD_LENGTH = 8;

@@ -7,6 +7,15 @@ export const NOTES_BUCKET = "notes";
 export const AVATARS_BUCKET = "avatars";
 
 const DEFAULT_DOWNLOAD_EXPIRY_SECONDS = 5 * 60;
+const DEFAULT_VIEW_EXPIRY_SECONDS = 30 * 60;
+
+/**
+ * A quote or newline in a filename would break out of the quoted-string in the
+ * Content-Disposition header we build, so strip those before interpolating.
+ */
+function quoteFileName(fileName: string): string {
+  return fileName.replace(/["\\\r\n]/g, "_");
+}
 
 @Injectable()
 export class StorageService implements OnModuleInit {
@@ -89,7 +98,37 @@ export class StorageService implements OnModuleInit {
       this.resolveBucket(bucket),
       key,
       expirySeconds,
-      { "response-content-disposition": `attachment; filename="${fileName}"` },
+      { "response-content-disposition": `attachment; filename="${quoteFileName(fileName)}"` },
+    );
+    return { url, expiresAt: new Date(Date.now() + expirySeconds * 1000) };
+  }
+
+  /**
+   * Same object, asked for with `inline` so the browser renders it in place
+   * rather than saving it — that single response header is the whole difference
+   * between "download" and "view". The content type is pinned too, because a
+   * stored object served as application/octet-stream will download regardless
+   * of the disposition.
+   *
+   * Expiry is longer than a download's: someone reading a paper keeps the tab
+   * open far longer than a save takes, and an expired URL mid-read shows a
+   * broken frame.
+   */
+  async getPresignedViewUrl(
+    bucket: string,
+    key: string,
+    fileName: string,
+    mimeType: string,
+    expirySeconds: number = DEFAULT_VIEW_EXPIRY_SECONDS,
+  ): Promise<{ url: string; expiresAt: Date }> {
+    const url = await this.client.presignedGetObject(
+      this.resolveBucket(bucket),
+      key,
+      expirySeconds,
+      {
+        "response-content-disposition": `inline; filename="${quoteFileName(fileName)}"`,
+        "response-content-type": mimeType,
+      },
     );
     return { url, expiresAt: new Date(Date.now() + expirySeconds * 1000) };
   }

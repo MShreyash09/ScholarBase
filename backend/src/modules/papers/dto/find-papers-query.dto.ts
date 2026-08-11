@@ -1,4 +1,4 @@
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import { IsInt, IsOptional, IsUUID } from "class-validator";
 
 export class FindPapersQueryDto {
@@ -11,7 +11,7 @@ export class FindPapersQueryDto {
   examTypeId?: string;
 
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) => (value ? Number(value) : undefined))
   @IsInt()
   academicYear?: number;
 }

@@ -58,6 +58,11 @@ export function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+            <div className="-mt-1 text-right">
+              <Link to="/forgot-password" className="text-xs font-semibold text-brand">
+                Forgot password?
+              </Link>
+            </div>
             {/* role=alert so the failure is announced, not just recoloured. */}
             {error && (
               <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm font-medium text-danger">

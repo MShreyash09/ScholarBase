@@ -10,7 +10,15 @@ import { Badge } from "@/components/ui/badge";
 
 const EXAM_TYPE_LABELS = ["Unit Test", "End Term"];
 
-function PaperRow({ subject, papers }: { subject: SubjectDto; papers: QuestionPaperDto[] }) {
+function PaperRow({
+  subject,
+  papers,
+  yearNumber,
+}: {
+  subject: SubjectDto;
+  papers: QuestionPaperDto[];
+  yearNumber: number;
+}) {
   const download = async (id: string) => {
     const { url } = await papersApi.getDownloadUrl(id);
     window.location.href = url;
@@ -18,10 +26,12 @@ function PaperRow({ subject, papers }: { subject: SubjectDto; papers: QuestionPa
 
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-b-0">
-      <div>
+      {/* Links into SubjectPage, the only place View (and Notes) live — this
+          row used to be a dead end with no way to reach either. */}
+      <Link to={`/years/${yearNumber}/${subject.id}`} className="hover:underline">
         <p className="font-semibold text-foreground">{subject.name}</p>
         <p className="text-xs text-foreground-muted">{subject.code}</p>
-      </div>
+      </Link>
       <div className="flex flex-wrap gap-2 justify-end">
         {papers.length > 0 ? (
           papers.map((p) => (
@@ -108,7 +118,14 @@ export function SemesterPage() {
                     const papersForExam = examTypeId
                       ? allPapers.filter((p) => p.examTypeId === examTypeId)
                       : [];
-                    return <PaperRow key={subject.id} subject={subject} papers={papersForExam} />;
+                    return (
+                      <PaperRow
+                        key={subject.id}
+                        subject={subject}
+                        papers={papersForExam}
+                        yearNumber={year}
+                      />
+                    );
                   })}
                 </CardContent>
               </Card>

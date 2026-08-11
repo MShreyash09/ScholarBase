@@ -1,5 +1,6 @@
 import type {
   AuthResponseDto,
+  ForgotPasswordResponseDto,
   LoginRequestDto,
   SignupRequestDto,
   UserDto,
@@ -13,4 +14,10 @@ export const authApi = {
     apiClient.post<AuthResponseDto>("/auth/login", body).then((r) => r.data),
   logout: (refreshToken: string) => apiClient.post("/auth/logout", { refreshToken }),
   me: () => apiClient.get<UserDto>("/auth/me").then((r) => r.data),
+  forgotPassword: (email: string) =>
+    apiClient
+      .post<ForgotPasswordResponseDto>("/auth/forgot-password", { email })
+      .then((r) => r.data),
+  resetPassword: (token: string, password: string) =>
+    apiClient.post("/auth/reset-password", { token, password }),
 };

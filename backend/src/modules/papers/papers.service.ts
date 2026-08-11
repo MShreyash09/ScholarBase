@@ -12,12 +12,14 @@ import {
 } from "@prisma/client";
 import {
   DownloadUrlDto,
+  FileViewUrlDto,
   IngestionStatus,
   QuestionPaperDto,
   UploadStatus,
 } from "@scholarbase/shared-types";
 import { PrismaService } from "../../prisma/prisma.service";
 import { PAPERS_BUCKET, StorageService } from "../storage/storage.service";
+import { StoredFileUrlService } from "../storage/stored-file-url.service";
 import { PDF_MIME_TYPES } from "../../common/constants/uploads";
 import { CreateQuestionPaperBodyDto } from "./dto/create-question-paper.dto";
 import { FindPapersQueryDto } from "./dto/find-papers-query.dto";
@@ -27,6 +29,7 @@ export class PapersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly fileUrls: StoredFileUrlService,
   ) {}
 
   async findAll(query: FindPapersQueryDto): Promise<QuestionPaperDto[]> {
@@ -89,13 +92,13 @@ export class PapersService {
   async getDownloadUrl(id: string): Promise<DownloadUrlDto> {
     const row = await this.prisma.questionPaper.findUnique({ where: { id } });
     if (!row) throw new NotFoundException("Question paper not found");
+    return this.fileUrls.getDownloadUrl(PAPERS_BUCKET, row);
+  }
 
-    const { url, expiresAt } = await this.storage.getPresignedDownloadUrl(
-      PAPERS_BUCKET,
-      row.fileKey,
-      row.fileName,
-    );
-    return { url, expiresAt: expiresAt.toISOString() };
+  async getViewUrl(id: string): Promise<FileViewUrlDto> {
+    const row = await this.prisma.questionPaper.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException("Question paper not found");
+    return this.fileUrls.getViewUrl(PAPERS_BUCKET, row);
   }
 
   async remove(id: string): Promise<void> {

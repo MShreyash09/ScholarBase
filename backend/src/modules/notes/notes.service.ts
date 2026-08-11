@@ -1,9 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomUUID } from "crypto";
 import { Note, UploadStatus as PrismaUploadStatus } from "@prisma/client";
-import { DownloadUrlDto, NoteDto, UploadStatus } from "@scholarbase/shared-types";
+import { DownloadUrlDto, FileViewUrlDto, NoteDto, UploadStatus } from "@scholarbase/shared-types";
 import { PrismaService } from "../../prisma/prisma.service";
 import { NOTES_BUCKET, StorageService } from "../storage/storage.service";
+import { StoredFileUrlService } from "../storage/stored-file-url.service";
 import { NOTES_MIME_TYPES } from "../../common/constants/uploads";
 import { CreateNoteBodyDto } from "./dto/create-note.dto";
 import { FindNotesQueryDto } from "./dto/find-notes-query.dto";
@@ -13,6 +14,7 @@ export class NotesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly fileUrls: StoredFileUrlService,
   ) {}
 
   async findAll(query: FindNotesQueryDto): Promise<NoteDto[]> {
@@ -65,13 +67,14 @@ export class NotesService {
   async getDownloadUrl(id: string): Promise<DownloadUrlDto> {
     const row = await this.prisma.note.findUnique({ where: { id } });
     if (!row) throw new NotFoundException("Note not found");
+    return this.fileUrls.getDownloadUrl(NOTES_BUCKET, row);
+  }
 
-    const { url, expiresAt } = await this.storage.getPresignedDownloadUrl(
-      NOTES_BUCKET,
-      row.fileKey,
-      row.fileName,
-    );
-    return { url, expiresAt: expiresAt.toISOString() };
+  /** Also gated behind auth — see the controller for why. */
+  async getViewUrl(id: string): Promise<FileViewUrlDto> {
+    const row = await this.prisma.note.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException("Note not found");
+    return this.fileUrls.getViewUrl(NOTES_BUCKET, row);
   }
 
   async remove(id: string): Promise<void> {

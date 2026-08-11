@@ -40,12 +40,13 @@ model User {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  refreshTokens     RefreshToken[]
-  uploadedPapers    QuestionPaper[]    @relation("PaperUploader")
-  uploadedNotes     Note[]             @relation("NoteUploader")
-  studyRooms        StudyRoom[]        @relation("StudyRoomCreator")
-  studyRoomMessages StudyRoomMessage[] @relation("StudyRoomMessageSender")
-  studyRoomMembers  StudyRoomMember[]  @relation("StudyRoomMembership")
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  uploadedPapers      QuestionPaper[]      @relation("PaperUploader")
+  uploadedNotes       Note[]               @relation("NoteUploader")
+  studyRooms          StudyRoom[]          @relation("StudyRoomCreator")
+  studyRoomMessages   StudyRoomMessage[]   @relation("StudyRoomMessageSender")
+  studyRoomMembers    StudyRoomMember[]    @relation("StudyRoomMembership")
 
   @@map("users")
 }
@@ -58,18 +59,39 @@ model AllowedEmailDomain {
 }
 
 model RefreshToken {
-  id               String    @id @default(uuid())
-  userId           String    @map("user_id")
-  tokenHash        String    @map("token_hash")
-  expiresAt        DateTime  @map("expires_at")
-  revokedAt        DateTime? @map("revoked_at")
-  replacedByTokenId String?  @map("replaced_by_token_id")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  tokenHash         String    @map("token_hash")
+  expiresAt         DateTime  @map("expires_at")
+  revokedAt         DateTime? @map("revoked_at")
+  replacedByTokenId String?   @map("replaced_by_token_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("refresh_tokens")
+}
+
+// Password reset links.
+//
+// Only the HMAC of the token is stored, so a database leak does not hand out
+// working reset links — same treatment as refresh tokens. `usedAt` makes a link
+// single-use: without it, anyone who later reads the mail (a shared inbox, a
+// forwarded thread, browser history) could reset the password again.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
 }
 
 model YearLevel {
@@ -91,9 +113,9 @@ model Subject {
   semester    Int?
   credits     Int?
 
-  yearLevel     YearLevel       @relation(fields: [yearLevelId], references: [id], onDelete: Cascade)
+  yearLevel      YearLevel       @relation(fields: [yearLevelId], references: [id], onDelete: Cascade)
   questionPapers QuestionPaper[]
-  notes         Note[]
+  notes          Note[]
 
   @@unique([yearLevelId, code])
   @@map("subjects")
@@ -109,20 +131,20 @@ model ExamType {
 }
 
 model QuestionPaper {
-  id               String          @id @default(uuid())
-  subjectId        String          @map("subject_id")
-  examTypeId       String          @map("exam_type_id")
-  academicYear     Int             @map("academic_year")
-  fileKey          String          @map("file_key")
-  fileName         String          @map("file_name")
-  fileSizeBytes    Int             @map("file_size_bytes")
-  mimeType         String          @map("mime_type")
-  checksum         String
-  uploadedById     String          @map("uploaded_by")
-  uploadStatus     UploadStatus    @default(pending) @map("upload_status")
-  ingestionStatus  IngestionStatus @default(not_ingested) @map("ingestion_status")
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @updatedAt @map("updated_at")
+  id              String          @id @default(uuid())
+  subjectId       String          @map("subject_id")
+  examTypeId      String          @map("exam_type_id")
+  academicYear    Int             @map("academic_year")
+  fileKey         String          @map("file_key")
+  fileName        String          @map("file_name")
+  fileSizeBytes   Int             @map("file_size_bytes")
+  mimeType        String          @map("mime_type")
+  checksum        String
+  uploadedById    String          @map("uploaded_by")
+  uploadStatus    UploadStatus    @default(pending) @map("upload_status")
+  ingestionStatus IngestionStatus @default(not_ingested) @map("ingestion_status")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
 
   subject    Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   examType   ExamType @relation(fields: [examTypeId], references: [id])

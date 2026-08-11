@@ -12,7 +12,7 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { DownloadUrlDto, NoteDto, UserRole } from "@scholarbase/shared-types";
+import { DownloadUrlDto, FileViewUrlDto, NoteDto, UserRole } from "@scholarbase/shared-types";
 import { Public } from "../../common/decorators/public.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -43,6 +43,14 @@ export class NotesController {
   @Get(":id/download")
   getDownloadUrl(@Param("id") id: string): Promise<DownloadUrlDto> {
     return this.notesService.getDownloadUrl(id);
+  }
+
+  // Also intentionally NOT @Public(): viewing a note in the browser hands out
+  // the same object as downloading it, so it has to sit behind the same gate —
+  // otherwise "view" would be a trivial bypass of the notes login requirement.
+  @Get(":id/view")
+  getViewUrl(@Param("id") id: string): Promise<FileViewUrlDto> {
+    return this.notesService.getViewUrl(id);
   }
 
   @Roles(UserRole.ADMIN)

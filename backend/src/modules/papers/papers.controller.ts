@@ -12,7 +12,7 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { DownloadUrlDto, QuestionPaperDto, UserRole } from "@scholarbase/shared-types";
+import { DownloadUrlDto, FileViewUrlDto, QuestionPaperDto, UserRole } from "@scholarbase/shared-types";
 import { Public } from "../../common/decorators/public.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -42,6 +42,14 @@ export class PapersController {
   @Get(":id/download")
   getDownloadUrl(@Param("id") id: string): Promise<DownloadUrlDto> {
     return this.papersService.getDownloadUrl(id);
+  }
+
+  // Public for the same reason downloads are: question papers are open to
+  // everyone, logged in or not.
+  @Public()
+  @Get(":id/view")
+  getViewUrl(@Param("id") id: string): Promise<FileViewUrlDto> {
+    return this.papersService.getViewUrl(id);
   }
 
   @Roles(UserRole.ADMIN)

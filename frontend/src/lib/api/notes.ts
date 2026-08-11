@@ -1,11 +1,4 @@
-import type { DownloadUrlDto, NoteDto } from "@scholarbase/shared-types";
-import { apiClient } from "../api-client";
+import type { NoteDto } from "@scholarbase/shared-types";
+import { createFileResourceApi } from "./create-file-resource-api";
 
-export const notesApi = {
-  listBySubject: (subjectId: string) =>
-    apiClient.get<NoteDto[]>("/notes", { params: { subjectId } }).then((r) => r.data),
-  getDownloadUrl: (id: string) =>
-    apiClient.get<DownloadUrlDto>(`/notes/${id}/download`).then((r) => r.data),
-  upload: (form: FormData) =>
-    apiClient.post<NoteDto>("/notes", form).then((r) => r.data),
-};
+export const notesApi = createFileResourceApi<NoteDto>("notes");
