@@ -20,10 +20,21 @@ function resolveIceServers(): RTCIceServer[] {
     try {
       return JSON.parse(raw) as RTCIceServer[];
     } catch {
-      console.warn("VITE_ICE_SERVERS is not valid JSON; falling back to public STUN");
+      console.warn("VITE_ICE_SERVERS is not valid JSON; falling back to public STUN/TURN");
     }
   }
-  return [{ urls: "stun:stun.l.google.com:19302" }];
+  return [
+    { urls: "stun:stun.l.google.com:19302" },
+    {
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
+  ];
 }
 
 // --- capture constraints ---------------------------------------------------
