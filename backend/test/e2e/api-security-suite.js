@@ -11,6 +11,14 @@
  *
  * NOTE: creates and then deletes throwaway accounts. Point it at a dev
  * database, never production.
+ *
+ * RUN WITH BREVO_API_KEY UNSET. The rate-limit and enumeration checks fire
+ * ~20 password-reset and resend-verification requests at ADMIN_EMAIL. With a
+ * live key those become real Brevo sends to an address that does not exist,
+ * which burns the 300/day free quota and — worse — generates hard bounces that
+ * damage sender reputation. With the key unset, MailService logs instead:
+ *
+ *   BREVO_API_KEY= node test/e2e/api-security-suite.js
  */
 require("dotenv/config");
 const crypto = require("crypto");

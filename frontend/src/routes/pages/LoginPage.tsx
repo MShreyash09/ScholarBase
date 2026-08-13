@@ -20,6 +20,13 @@ export function LoginPage() {
     setError(null);
     setIsUnverified(false);
     setIsSubmitting(true);
+
+    if (!email.endsWith("@mmcoe.edu.in")) {
+      setError("Only @mmcoe.edu.in emails are allowed.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       await login({ email, password });
       const from = (location.state as { from?: Location })?.from?.pathname ?? "/";
@@ -55,7 +62,7 @@ export function LoginPage() {
               name="email"
               type="email"
               autoComplete="email"
-              placeholder="you@youruniversity.edu.in"
+              placeholder="username@mmcoe.edu.in"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

@@ -18,6 +18,13 @@ export function SignupPage() {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
+
+    if (!email.endsWith("@mmcoe.edu.in")) {
+      setError("Only @mmcoe.edu.in emails are allowed.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       // Signup no longer logs you in — it returns a confirmation message and
       // the account stays unusable until the emailed link is opened.

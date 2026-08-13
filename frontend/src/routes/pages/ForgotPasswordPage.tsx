@@ -10,10 +10,19 @@ export function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsSubmitting(true);
+
+    if (!email.endsWith("@mmcoe.edu.in")) {
+      setError("Only @mmcoe.edu.in emails are allowed.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const res = await authApi.forgotPassword(email);
       setMessage(res.message);
@@ -66,6 +75,11 @@ export function ForgotPasswordPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+              {error && (
+                <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm font-medium text-danger">
+                  {error}
+                </p>
+              )}
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? "Sending..." : "Send reset link"}
               </Button>

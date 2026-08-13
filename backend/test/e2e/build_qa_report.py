@@ -176,7 +176,7 @@ DEFECTS = [
      "Branch the title on isLoading / error / loaded explicitly."),
     ("QA-13", "Low", "-",
      "Signup placeholder advertises a domain the server rejects",
-     "The email field placeholder reads 'you@youruniversity.edu.in' but the only allowlisted domain is "
+     "The email field placeholder reads 'username@mmcoe.edu.in' but the only allowlisted domain is "
      "mmcoe.edu.in. Submitting the suggested domain fails, and the error never names an accepted domain.",
      "UAT-008",
      "Drive the placeholder and the error message from the allowlist, e.g. 'Use your @mmcoe.edu.in address'."),

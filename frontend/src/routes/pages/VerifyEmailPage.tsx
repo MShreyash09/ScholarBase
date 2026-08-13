@@ -126,10 +126,19 @@ function ResendForm() {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sent, setSent] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsSubmitting(true);
+
+    if (!email.endsWith("@mmcoe.edu.in")) {
+      setError("Only @mmcoe.edu.in emails are allowed.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const res = await authApi.resendVerification(email);
       setSent(res.message);
@@ -163,11 +172,16 @@ function ResendForm() {
         name="email"
         type="email"
         autoComplete="email"
-        placeholder="you@mmcoe.edu.in"
+        placeholder="username@mmcoe.edu.in"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required
       />
+      {error && (
+        <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm font-medium text-danger">
+          {error}
+        </p>
+      )}
       <Button type="submit" disabled={isSubmitting}>
         {isSubmitting ? "Sending..." : "Send a new link"}
       </Button>
