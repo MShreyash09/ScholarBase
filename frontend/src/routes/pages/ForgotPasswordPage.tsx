@@ -61,7 +61,7 @@ export function ForgotPasswordPage() {
                 name="email"
                 type="email"
                 autoComplete="email"
-                placeholder="you@youruniversity.edu.in"
+                placeholder="username@mmcoe.edu.in"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

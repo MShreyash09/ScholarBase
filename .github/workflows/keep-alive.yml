@@ -1,0 +1,63 @@
+name: Keep backend awake
+
+# Render's free tier spins a web service down after ~15 minutes with no inbound
+# traffic, and the next request then pays a 1-2 minute cold start. Pinging the
+# public health endpoint more often than that window keeps it resident.
+#
+# Hours are deliberately limited to roughly 07:00-23:00 IST rather than 24/7:
+# Render's free tier allows 750 instance-hours per workspace per calendar month,
+# and a service kept alive around the clock burns ~744 of them in a 31-day month,
+# leaving no headroom before free services are suspended. A ~16h/day window costs
+# ~500 hours/month instead.
+#
+# GitHub Actions cron is UTC only. IST is UTC+05:30, so the three entries below
+# together cover 07:00-23:00 IST.
+
+on:
+  schedule:
+    - cron: "30,40,50 1 * * *"     # 01:30-01:50 UTC -> 07:00-07:20 IST
+    - cron: "*/10 2-16 * * *"      # 02:00-16:50 UTC -> 07:30-22:20 IST
+    - cron: "0,10,20,30 17 * * *"  # 17:00-17:30 UTC -> 22:30-23:00 IST
+  workflow_dispatch: {}            # lets you trigger a run by hand to test it
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /api/health
+        env:
+          # Set this as a repository *variable* (Settings > Secrets and variables
+          # > Actions > Variables), e.g. https://scholarbase-backend.onrender.com
+          BACKEND_URL: ${{ vars.BACKEND_URL }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${BACKEND_URL:-}" ]; then
+            echo "::error::BACKEND_URL repository variable is not set."
+            exit 1
+          fi
+
+          url="${BACKEND_URL%/}/api/health"
+          echo "Pinging $url"
+
+          # A cold start can take 1-2 minutes, so allow a generous timeout and
+          # retry rather than reporting failure while the dyno is still booting.
+          code=$(curl -sS -o /tmp/body.txt -w "%{http_code}" \
+                   --max-time 180 \
+                   --retry 3 --retry-delay 20 --retry-all-errors \
+                   "$url" || echo "000")
+
+          echo "HTTP $code"
+          echo "Response: $(head -c 300 /tmp/body.txt)"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::Health check failed with HTTP $code"
+            exit 1
+          fi
+
+          echo "Backend is awake."
