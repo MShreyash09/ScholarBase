@@ -5,8 +5,10 @@ import { studyRoomsApi } from "@/lib/api/study-rooms";
 import { useAuth } from "@/hooks/useAuth";
 import { useStudyRoom } from "@/hooks/useStudyRoom";
 import { useStudyRoomMedia } from "@/hooks/useStudyRoomMedia";
+import { useWhiteboard } from "@/hooks/useWhiteboard";
 import { ChatPanel } from "@/components/study-room/ChatPanel";
 import { CallPanel } from "@/components/study-room/CallPanel";
+import { WhiteboardPanel } from "@/components/study-room/WhiteboardPanel";
 import { CopyInviteButton } from "@/components/study-room/CopyInviteButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +47,14 @@ export function StudyRoomPage() {
   } = useStudyRoom(roomId);
 
   const media = useStudyRoomMedia(roomId, socketRef, participants, status === "connected");
+
+  const board = useWhiteboard(
+    roomId,
+    socketRef,
+    status === "connected",
+    self?.userId,
+    self?.socketId,
+  );
 
   // If the room is closed under us, release the mic/camera immediately rather
   // than leaving the capture running behind a dead session.
@@ -132,6 +142,19 @@ export function StudyRoomPage() {
               self={self}
               participants={participants}
               disabled={status !== "connected"}
+            />
+          </Card>
+
+          {/* Deliberately its own panel rather than an overlay on the screen
+              share: the board is a separate surface, and it keeps working for
+              students whose peer connection never establishes. */}
+          <Card className="p-4">
+            <WhiteboardPanel
+              board={board}
+              participants={everyone}
+              roomId={roomId!}
+              selfUserId={self?.userId}
+              selfName={self?.fullName ?? user?.fullName ?? "You"}
             />
           </Card>
 
