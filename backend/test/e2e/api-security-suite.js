@@ -69,6 +69,40 @@ async function req(method, urlPath, { body, token, headers = {}, raw = false } =
   return { status: res.status, headers: res.headers, text, json };
 }
 
+/**
+ * Lazily-created Prisma client, shared by the verification helper and cleanup.
+ * The suite needs direct database access because only the HMAC of a
+ * verification token is ever persisted — the raw token exists solely inside the
+ * email, which this process cannot read.
+ */
+let prismaClient = null;
+function getPrisma() {
+  if (!prismaClient) {
+    const { PrismaClient } = require("@prisma/client");
+    prismaClient = new PrismaClient();
+  }
+  return prismaClient;
+}
+
+/**
+ * Plants a verification token for a user and returns the raw value, hashing it
+ * exactly as AuthService.hashVerificationToken does. This lets the real
+ * /auth/verify-email endpoint be exercised over HTTP rather than bypassed.
+ */
+async function plantVerificationToken(userId) {
+  const raw = crypto.randomBytes(32).toString("hex");
+  const secret = process.env.JWT_REFRESH_SECRET;
+  const tokenHash = crypto
+    .createHmac("sha256", `email-verification:${secret}`)
+    .update(raw)
+    .digest("hex");
+
+  await getPrisma().emailVerificationToken.create({
+    data: { userId, tokenHash, expiresAt: new Date(Date.now() + 3_600_000) },
+  });
+  return raw;
+}
+
 const b64url = (obj) => Buffer.from(JSON.stringify(obj)).toString("base64url");
 function signHS256(payload, secret) {
   const h = b64url({ alg: "HS256", typ: "JWT" });
@@ -110,20 +144,18 @@ async function e2eAuth() {
   const signup = await req("POST", "/auth/signup", {
     body: { email, password, fullName: "QA Student" },
   });
-  if (signup.status === 201 || signup.status === 200) {
-    createdEmails.push(email);
-    studentToken = signup.json?.accessToken;
-    studentRefresh = signup.json?.refreshToken;
-    studentId = signup.json?.user?.id;
-  }
+  if (signup.status === 201 || signup.status === 200) createdEmails.push(email);
+
+  const issuedNoSession = !signup.json?.accessToken && !signup.json?.refreshToken;
   record({
     id: "E2E-003",
     phase: "E2E",
-    owasp: "-",
-    name: "Signup succeeds for an allowlisted domain and returns tokens",
-    expected: "201/200 with accessToken + refreshToken",
-    actual: `${signup.status}, token=${Boolean(studentToken)}`,
-    status: studentToken ? "PASS" : "FAIL",
+    owasp: "API2",
+    name: "Signup creates the account but issues NO session until the email is confirmed",
+    expected: "201/200, a message, and no tokens",
+    actual: `${signup.status}, tokens=${!issuedNoSession}, body=${(signup.text || "").slice(0, 80)}`,
+    status: (signup.status === 201 || signup.status === 200) && issuedNoSession ? "PASS" : "FAIL",
+    severity: issuedNoSession ? "-" : "High",
   });
 
   const dup = await req("POST", "/auth/signup", {
@@ -139,12 +171,67 @@ async function e2eAuth() {
     status: dup.status === 409 ? "PASS" : "FAIL",
   });
 
+  // The gate itself: correct credentials must still be refused pre-confirmation.
+  const unverifiedLogin = await req("POST", "/auth/login", { body: { email, password } });
+  record({
+    id: "E2E-005a",
+    phase: "E2E",
+    owasp: "API2",
+    name: "Login is refused with 403 while the address is unconfirmed",
+    expected: "403 (not 401 — 401 is hijacked by the client's refresh interceptor)",
+    actual: `${unverifiedLogin.status}: ${(unverifiedLogin.json?.message || "").slice(0, 70)}`,
+    status: unverifiedLogin.status === 403 ? "PASS" : "FAIL",
+    severity: unverifiedLogin.status === 403 ? "-" : "Critical",
+  });
+
+  // Exercise the real verification endpoint. Only the HMAC is stored, so the
+  // raw token is planted directly with the same hashing the service uses.
+  const created = await getPrisma().user.findUnique({ where: { email } });
+  studentId = created?.id;
+
+  const badToken = await req("POST", "/auth/verify-email", { body: { token: "not-a-real-token" } });
+  record({
+    id: "E2E-005b",
+    phase: "E2E",
+    owasp: "-",
+    name: "A bogus confirmation token is rejected with 400",
+    expected: "400",
+    actual: String(badToken.status),
+    status: badToken.status === 400 ? "PASS" : "FAIL",
+  });
+
+  const rawToken = await plantVerificationToken(studentId);
+  const verify = await req("POST", "/auth/verify-email", { body: { token: rawToken } });
+  record({
+    id: "E2E-005c",
+    phase: "E2E",
+    owasp: "-",
+    name: "A valid confirmation token verifies the account",
+    expected: "200",
+    actual: `${verify.status}: ${(verify.json?.message || "").slice(0, 60)}`,
+    status: verify.status === 200 ? "PASS" : "FAIL",
+  });
+
+  const replay = await req("POST", "/auth/verify-email", { body: { token: rawToken } });
+  record({
+    id: "E2E-005d",
+    phase: "E2E",
+    owasp: "-",
+    name: "Re-opening a spent link is handled gracefully, not as an error",
+    expected: "200 (already confirmed)",
+    actual: `${replay.status}: ${(replay.json?.message || "").slice(0, 60)}`,
+    status: replay.status === 200 ? "PASS" : "WARN",
+    severity: replay.status === 200 ? "-" : "Low",
+  });
+
   const login = await req("POST", "/auth/login", { body: { email, password } });
+  studentToken = login.json?.accessToken;
+  studentRefresh = login.json?.refreshToken;
   record({
     id: "E2E-005",
     phase: "E2E",
     owasp: "-",
-    name: "Login with valid credentials issues tokens",
+    name: "Login succeeds once the address is confirmed",
     expected: "200/201 with accessToken",
     actual: `${login.status}, token=${Boolean(login.json?.accessToken)}`,
     status: login.json?.accessToken ? "PASS" : "FAIL",
@@ -653,6 +740,26 @@ async function owaspResourceConsumption() {
   });
 
   // Response-body uniformity (the defence the code actually implements).
+  // Resend-verification must be as enumeration-safe as forgot-password: it also
+  // distinguishes "registered", "unregistered" and "already verified".
+  const resendKnown = await req("POST", "/auth/resend-verification", { body: { email: ADMIN_EMAIL } });
+  const resendUnknown = await req("POST", "/auth/resend-verification", {
+    body: { email: `nobody-${Date.now()}@${ALLOWED_DOMAIN}` },
+  });
+  record({
+    id: "SEC-API6-004",
+    phase: "Security",
+    owasp: "API6 Unrestricted Access to Sensitive Business Flows",
+    name: "Resend-verification answers identically for known, unknown and already-verified addresses",
+    expected: "same status and body",
+    actual: `${resendKnown.status}/${resendUnknown.status}, identical=${resendKnown.text === resendUnknown.text}`,
+    status:
+      resendKnown.status === resendUnknown.status && resendKnown.text === resendUnknown.text
+        ? "PASS"
+        : "FAIL",
+    severity: "-",
+  });
+
   const known = await req("POST", "/auth/forgot-password", { body: { email: ADMIN_EMAIL } });
   const unknown = await req("POST", "/auth/forgot-password", {
     body: { email: `nobody-${Date.now()}@${ALLOWED_DOMAIN}` },
@@ -846,15 +953,16 @@ async function owaspConfiguration() {
 // --------------------------------------------------------------- cleanup
 
 async function cleanup() {
-  if (!createdEmails.length) return;
   try {
-    const { PrismaClient } = require("@prisma/client");
-    const prisma = new PrismaClient();
-    const del = await prisma.user.deleteMany({ where: { email: { in: createdEmails } } });
-    await prisma.$disconnect();
-    console.log(`\nCleanup: removed ${del.count} throwaway QA account(s).`);
+    if (createdEmails.length) {
+      // Tokens cascade with the user row, so deleting the account is enough.
+      const del = await getPrisma().user.deleteMany({ where: { email: { in: createdEmails } } });
+      console.log(`\nCleanup: removed ${del.count} throwaway QA account(s).`);
+    }
   } catch (e) {
     console.log(`\nCleanup FAILED (remove manually: ${createdEmails.join(", ")}): ${e.message}`);
+  } finally {
+    if (prismaClient) await prismaClient.$disconnect().catch(() => undefined);
   }
 }
 

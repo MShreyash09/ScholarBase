@@ -50,10 +50,18 @@ async function main() {
 
   const passwordHash = await argon2.hash(password);
 
+  // emailVerifiedAt is set explicitly: login refuses unverified accounts, and
+  // nobody is going to click a confirmation link for a seeded service account.
   const admin = await prisma.user.upsert({
     where: { email },
-    update: { passwordHash, fullName, role: UserRole.admin },
-    create: { email, passwordHash, fullName, role: UserRole.admin },
+    update: { passwordHash, fullName, role: UserRole.admin, emailVerifiedAt: new Date() },
+    create: {
+      email,
+      passwordHash,
+      fullName,
+      role: UserRole.admin,
+      emailVerifiedAt: new Date(),
+    },
   });
 
   console.log(`Admin account ready: ${admin.email} (id: ${admin.id})`);

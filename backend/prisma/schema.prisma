@@ -40,8 +40,9 @@ model User {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  refreshTokens       RefreshToken[]
-  passwordResetTokens PasswordResetToken[]
+  refreshTokens           RefreshToken[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
   uploadedPapers      QuestionPaper[]      @relation("PaperUploader")
   uploadedNotes       Note[]               @relation("NoteUploader")
   studyRooms          StudyRoom[]          @relation("StudyRoomCreator")
@@ -92,6 +93,27 @@ model PasswordResetToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("password_reset_tokens")
+}
+
+// Signup email-confirmation links.
+//
+// Same treatment as password reset tokens — only the HMAC is stored, and the
+// hash is domain-separated from both the refresh and reset hashes so one string
+// can never be redeemed as more than one kind of token. `usedAt` keeps the link
+// single-use so a forwarded confirmation mail can't be replayed by someone else.
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("email_verification_tokens")
 }
 
 model YearLevel {

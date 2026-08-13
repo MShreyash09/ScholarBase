@@ -12,18 +12,30 @@ export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [isUnverified, setIsUnverified] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    setIsUnverified(false);
     setIsSubmitting(true);
     try {
       await login({ email, password });
       const from = (location.state as { from?: Location })?.from?.pathname ?? "/";
       navigate(from, { replace: true });
-    } catch {
-      setError("Invalid email or password.");
+    } catch (err) {
+      const res = (err as { response?: { status?: number; data?: { message?: string } } })?.response;
+      // 403 is the unconfirmed-account gate, and its message is actionable, so
+      // it is shown verbatim. Everything else stays deliberately generic so a
+      // wrong password can't be told apart from an address that isn't
+      // registered.
+      if (res?.status === 403) {
+        setIsUnverified(true);
+        setError(res.data?.message ?? "Confirm your email before logging in.");
+      } else {
+        setError("Invalid email or password.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -65,9 +77,19 @@ export function LoginPage() {
             </div>
             {/* role=alert so the failure is announced, not just recoloured. */}
             {error && (
-              <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm font-medium text-danger">
-                {error}
-              </p>
+              <div className="flex flex-col gap-1">
+                <p role="alert" className="rounded-lg bg-danger-bg px-3 py-2 text-sm font-medium text-danger">
+                  {error}
+                </p>
+                {/* An unconfirmed account is a dead end without this — the 403
+                    tells them to check their inbox, but the link may have
+                    expired or never arrived. */}
+                {isUnverified && (
+                  <Link to="/verify-email" className="text-xs font-semibold text-brand">
+                    Resend confirmation email
+                  </Link>
+                )}
+              </div>
             )}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting ? "Logging in..." : "Log in"}

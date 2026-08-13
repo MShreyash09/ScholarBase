@@ -6,7 +6,12 @@
  * and session revocation. Prisma/JWT/Mail are mocked; argon2 and crypto are
  * real so hashing behaviour is genuinely exercised.
  */
-import { BadRequestException, ConflictException, UnauthorizedException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { JwtService } from "@nestjs/jwt";
 import { createHmac } from "crypto";
@@ -37,6 +42,12 @@ function makeDeps() {
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    emailVerificationToken: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+      updateMany: jest.fn(),
+    },
     $transaction: jest.fn().mockResolvedValue([]),
   } as unknown as PrismaService;
 
@@ -50,7 +61,10 @@ function makeDeps() {
     },
   } as unknown as ConfigService;
 
-  const mail = { sendPasswordReset: jest.fn().mockResolvedValue(undefined) } as unknown as MailService;
+  const mail = {
+    sendPasswordReset: jest.fn().mockResolvedValue(undefined),
+    sendEmailVerification: jest.fn().mockResolvedValue(undefined),
+  } as unknown as MailService;
 
   return { prisma, jwt, config, mail, service: new AuthService(prisma, jwt, config, mail) };
 }
@@ -61,6 +75,9 @@ const USER = {
   fullName: "A Student",
   role: "student",
   passwordHash: "",
+  // Verified by default — login refuses unverified accounts, so the unverified
+  // case is opted into explicitly by the tests that exercise that gate.
+  emailVerifiedAt: new Date("2026-01-02T00:00:00Z"),
   createdAt: new Date("2026-01-01T00:00:00Z"),
   updatedAt: new Date("2026-01-01T00:00:00Z"),
 };
@@ -93,7 +110,7 @@ describe("IT-AUTH signup", () => {
     const { service, prisma } = makeDeps();
     (prisma.allowedEmailDomain.findFirst as jest.Mock).mockResolvedValue({ domain: "youruniversity.edu.in" });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-    (prisma.user.create as jest.Mock).mockResolvedValue({ ...USER, passwordHash: "h" });
+    (prisma.user.create as jest.Mock).mockResolvedValue({ ...USER, passwordHash: "h", emailVerifiedAt: null });
 
     const plaintext = "SuperSecret123";
     await service.signup({ email: USER.email, password: plaintext, fullName: "X" });
@@ -110,13 +127,74 @@ describe("IT-AUTH signup", () => {
     const { service, prisma } = makeDeps();
     (prisma.allowedEmailDomain.findFirst as jest.Mock).mockResolvedValue({ domain: "youruniversity.edu.in" });
     (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-    (prisma.user.create as jest.Mock).mockResolvedValue(USER);
+    (prisma.user.create as jest.Mock).mockResolvedValue({ ...USER, emailVerifiedAt: null });
 
     await service.signup({ email: "  STUDENT@YourUniversity.edu.in ", password: "12345678", fullName: "X" });
 
     expect((prisma.user.create as jest.Mock).mock.calls[0][0].data.email).toBe(
       "student@youruniversity.edu.in",
     );
+  });
+
+  it("IT-AUTH-025: issues NO session at signup — the account is unusable until confirmed", async () => {
+    const { service, prisma, mail } = makeDeps();
+    (prisma.allowedEmailDomain.findFirst as jest.Mock).mockResolvedValue({ domain: "youruniversity.edu.in" });
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.user.create as jest.Mock).mockResolvedValue({ ...USER, emailVerifiedAt: null });
+
+    const res = await service.signup({ email: USER.email, password: "12345678", fullName: "X" });
+
+    expect(res).toEqual({ message: expect.any(String) });
+    expect(res).not.toHaveProperty("accessToken");
+    expect(res).not.toHaveProperty("refreshToken");
+    // No refresh token row, and the account is left unverified.
+    expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+    expect((prisma.user.create as jest.Mock).mock.calls[0][0].data.emailVerifiedAt).toBeUndefined();
+    expect(mail.sendEmailVerification).toHaveBeenCalledTimes(1);
+  });
+
+  it("IT-AUTH-026: the confirmation link mailed at signup is a hash-stored single-use token", async () => {
+    const { service, prisma, mail } = makeDeps();
+    (prisma.allowedEmailDomain.findFirst as jest.Mock).mockResolvedValue({ domain: "youruniversity.edu.in" });
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.user.create as jest.Mock).mockResolvedValue({ ...USER, emailVerifiedAt: null });
+
+    await service.signup({ email: USER.email, password: "12345678", fullName: "X" });
+
+    const verifyUrl = (mail.sendEmailVerification as jest.Mock).mock.calls[0][2] as string;
+    const rawToken = new URL(verifyUrl).searchParams.get("token")!;
+    const storedHash = (prisma.emailVerificationToken.create as jest.Mock).mock.calls[0][0].data
+      .tokenHash;
+
+    expect(verifyUrl).toContain("/verify-email?token=");
+    expect(rawToken).toMatch(/^[a-f0-9]{64}$/);
+    expect(storedHash).not.toBe(rawToken);
+  });
+
+  it("IT-AUTH-027: verification hash is domain-separated from BOTH the refresh and reset hashes", async () => {
+    const { service, prisma, mail } = makeDeps();
+    (prisma.allowedEmailDomain.findFirst as jest.Mock).mockResolvedValue({ domain: "youruniversity.edu.in" });
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.user.create as jest.Mock).mockResolvedValue({ ...USER, emailVerifiedAt: null });
+
+    await service.signup({ email: USER.email, password: "12345678", fullName: "X" });
+
+    const verifyUrl = (mail.sendEmailVerification as jest.Mock).mock.calls[0][2] as string;
+    const rawToken = new URL(verifyUrl).searchParams.get("token")!;
+    const storedHash = (prisma.emailVerificationToken.create as jest.Mock).mock.calls[0][0].data
+      .tokenHash;
+
+    const plainHmac = createHmac("sha256", REFRESH_SECRET).update(rawToken).digest("hex");
+    const resetHmac = createHmac("sha256", `password-reset:${REFRESH_SECRET}`)
+      .update(rawToken)
+      .digest("hex");
+    const verifyHmac = createHmac("sha256", `email-verification:${REFRESH_SECRET}`)
+      .update(rawToken)
+      .digest("hex");
+
+    expect(storedHash).toBe(verifyHmac);
+    expect(storedHash).not.toBe(plainHmac);
+    expect(storedHash).not.toBe(resetHmac);
   });
 });
 
@@ -152,7 +230,14 @@ describe("IT-AUTH login", () => {
     expect(res.accessToken).toBeTruthy();
     expect(res.refreshToken).toBeTruthy();
     expect(JSON.stringify(res)).not.toContain("$argon2");
-    expect(Object.keys(res.user).sort()).toEqual(["createdAt", "email", "fullName", "id", "role"]);
+    expect(Object.keys(res.user).sort()).toEqual([
+      "createdAt",
+      "email",
+      "emailVerifiedAt",
+      "fullName",
+      "id",
+      "role",
+    ]);
   });
 
   it("IT-AUTH-007: persists only an HMAC of the refresh token, never the raw value", async () => {
@@ -169,6 +254,161 @@ describe("IT-AUTH login", () => {
     expect(stored.tokenHash).toBe(
       createHmac("sha256", REFRESH_SECRET).update(res.refreshToken).digest("hex"),
     );
+  });
+});
+
+describe("IT-AUTH email verification gate", () => {
+  it("IT-AUTH-028: login is refused with 403 while the address is unconfirmed", async () => {
+    const { service, prisma } = makeDeps();
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      ...USER,
+      emailVerifiedAt: null,
+      passwordHash: await argon2.hash("pw12345678"),
+    });
+
+    const err = await service.login({ email: USER.email, password: "pw12345678" }).catch((e) => e);
+
+    // 403 not 401: the frontend interceptor swallows 401s as expired sessions.
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(err.message).toMatch(/confirm your email/i);
+    // Crucially, no session is handed out.
+    expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+  });
+
+  it("IT-AUTH-029: the gate runs only after the password check, so it can't confirm an account for free", async () => {
+    const { service, prisma } = makeDeps();
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      ...USER,
+      emailVerifiedAt: null,
+      passwordHash: await argon2.hash("pw12345678"),
+    });
+
+    // Wrong password against an unverified account must still look like any
+    // other bad credential, not reveal that the account exists but is pending.
+    const err = await service.login({ email: USER.email, password: "wrong" }).catch((e) => e);
+    expect(err).toBeInstanceOf(UnauthorizedException);
+    expect(err.message).toBe("Invalid email or password");
+  });
+
+  it("IT-AUTH-030: login succeeds once the address is confirmed", async () => {
+    const { service, prisma } = makeDeps();
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      ...USER,
+      passwordHash: await argon2.hash("pw12345678"),
+    });
+
+    const res = await service.login({ email: USER.email, password: "pw12345678" });
+    expect(res.accessToken).toBeTruthy();
+    expect(res.user.emailVerifiedAt).toBe("2026-01-02T00:00:00.000Z");
+  });
+
+  it("IT-AUTH-031: verifyEmail marks the account verified and burns the token atomically", async () => {
+    const { service, prisma } = makeDeps();
+    (prisma.emailVerificationToken.findUnique as jest.Mock).mockResolvedValue({
+      id: "v1",
+      userId: USER.id,
+      usedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: { ...USER, emailVerifiedAt: null },
+    });
+
+    await service.verifyEmail("valid-token");
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: USER.id },
+      data: { emailVerifiedAt: expect.any(Date) },
+    });
+    expect(prisma.emailVerificationToken.update).toHaveBeenCalledWith({
+      where: { id: "v1" },
+      data: { usedAt: expect.any(Date) },
+    });
+  });
+
+  it("IT-AUTH-032: an unknown or expired confirmation token is rejected with one generic message", async () => {
+    const { service, prisma } = makeDeps();
+    const messages: string[] = [];
+
+    for (const row of [
+      null,
+      {
+        id: "v1",
+        userId: USER.id,
+        usedAt: new Date(),
+        expiresAt: new Date(Date.now() + 1000),
+        user: { ...USER, emailVerifiedAt: null },
+      },
+      {
+        id: "v1",
+        userId: USER.id,
+        usedAt: null,
+        expiresAt: new Date(Date.now() - 1000),
+        user: { ...USER, emailVerifiedAt: null },
+      },
+    ]) {
+      (prisma.emailVerificationToken.findUnique as jest.Mock).mockResolvedValue(row);
+      messages.push(await service.verifyEmail("t").catch((e) => e.message));
+    }
+
+    expect(new Set(messages).size).toBe(1);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("IT-AUTH-033: re-opening a spent link for an already-verified account succeeds instead of erroring", async () => {
+    const { service, prisma } = makeDeps();
+    (prisma.emailVerificationToken.findUnique as jest.Mock).mockResolvedValue({
+      id: "v1",
+      userId: USER.id,
+      usedAt: new Date(),
+      expiresAt: new Date(Date.now() - 1000),
+      user: USER, // already verified
+    });
+
+    // A double click or a mail-client prefetch must not look like a failure.
+    await expect(service.verifyEmail("spent")).resolves.toEqual({
+      message: expect.stringMatching(/already confirmed/i),
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("IT-AUTH-034: resendVerification is silent for unknown and already-verified addresses", async () => {
+    const { service, prisma, mail } = makeDeps();
+
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    await expect(service.resendVerification("ghost@x.com")).resolves.toBeUndefined();
+
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(USER); // verified
+    await expect(service.resendVerification(USER.email)).resolves.toBeUndefined();
+
+    expect(mail.sendEmailVerification).not.toHaveBeenCalled();
+    expect(prisma.emailVerificationToken.create).not.toHaveBeenCalled();
+  });
+
+  it("IT-AUTH-035: resendVerification issues a fresh link and kills the previous one", async () => {
+    const { service, prisma, mail } = makeDeps();
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue({ ...USER, emailVerifiedAt: null });
+
+    await service.resendVerification(USER.email);
+
+    expect(prisma.emailVerificationToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: USER.id, usedAt: null },
+      data: { usedAt: expect.any(Date) },
+    });
+    expect(mail.sendEmailVerification).toHaveBeenCalledTimes(1);
+  });
+
+  it("IT-AUTH-036: a mail failure during signup does not fail the signup itself", async () => {
+    const { service, prisma, mail } = makeDeps();
+    (prisma.allowedEmailDomain.findFirst as jest.Mock).mockResolvedValue({ domain: "youruniversity.edu.in" });
+    (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+    (prisma.user.create as jest.Mock).mockResolvedValue({ ...USER, emailVerifiedAt: null });
+    (mail.sendEmailVerification as jest.Mock).mockRejectedValue(new Error("Brevo down"));
+
+    // The account and token still exist; the user can ask for a resend.
+    await expect(
+      service.signup({ email: USER.email, password: "12345678", fullName: "X" }),
+    ).resolves.toEqual({ message: expect.any(String) });
+    expect(prisma.emailVerificationToken.create).toHaveBeenCalled();
   });
 });
 

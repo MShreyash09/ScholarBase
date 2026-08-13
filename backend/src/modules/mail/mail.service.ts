@@ -119,6 +119,55 @@ export class MailService {
 
     await this.send({ to, toName: fullName, subject, html, text });
   }
+
+  async sendEmailVerification(
+    to: string,
+    fullName: string,
+    verifyUrl: string,
+    ttlHours: number,
+  ) {
+    const subject = "Confirm your ScholarBase email";
+    const text = [
+      `Hi ${fullName},`,
+      "",
+      "Welcome to ScholarBase. Confirm this address to finish setting up your account.",
+      `Open this link (it expires in ${ttlHours} hours and can only be used once):`,
+      "",
+      verifyUrl,
+      "",
+      "Until you confirm, you won't be able to log in.",
+      "",
+      "If you didn't create this account, you can ignore this email — nothing else happens.",
+      "",
+      "— ScholarBase",
+    ].join("\n");
+
+    const html = `
+<div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#111827">
+  <h1 style="margin:0 0 16px;font-size:20px;color:#850013">Confirm your email</h1>
+  <p style="margin:0 0 12px;line-height:1.6">Hi ${escapeHtml(fullName)},</p>
+  <p style="margin:0 0 20px;line-height:1.6">
+    Welcome to ScholarBase. Confirm this address to finish setting up your
+    account — the link expires in <strong>${ttlHours} hours</strong> and can
+    only be used once. <strong>Until you confirm, you won't be able to log in.</strong>
+  </p>
+  <p style="margin:0 0 24px">
+    <a href="${escapeHtml(verifyUrl)}"
+       style="display:inline-block;background:#850013;color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:30px;font-weight:600">
+      Confirm my email
+    </a>
+  </p>
+  <p style="margin:0 0 8px;line-height:1.6;font-size:13px;color:#6b7280">
+    If the button doesn't work, paste this into your browser:
+  </p>
+  <p style="margin:0 0 24px;word-break:break-all;font-size:13px;color:#6b7280">${escapeHtml(verifyUrl)}</p>
+  <p style="margin:0;line-height:1.6;font-size:13px;color:#6b7280">
+    If you didn't create this account, ignore this email — nothing else happens.
+  </p>
+</div>`.trim();
+
+    await this.send({ to, toName: fullName, subject, html, text });
+  }
 }
 
 function escapeHtml(value: string): string {

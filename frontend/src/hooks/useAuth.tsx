@@ -1,5 +1,11 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
-import { UserRole, type LoginRequestDto, type SignupRequestDto, type UserDto } from "@scholarbase/shared-types";
+import {
+  UserRole,
+  type LoginRequestDto,
+  type SignupRequestDto,
+  type SignupResponseDto,
+  type UserDto,
+} from "@scholarbase/shared-types";
 import { authApi } from "@/lib/api/auth";
 import { authStorage } from "@/lib/auth-storage";
 
@@ -8,7 +14,12 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (body: LoginRequestDto) => Promise<void>;
-  signup: (body: SignupRequestDto) => Promise<void>;
+  /**
+   * Resolves with the server's confirmation message. Unlike login this does NOT
+   * establish a session — the account stays unusable until the emailed link is
+   * opened — so there is nothing to store here.
+   */
+  signup: (body: SignupRequestDto) => Promise<SignupResponseDto>;
   logout: () => Promise<void>;
 }
 
@@ -24,9 +35,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signup = async (body: SignupRequestDto) => {
-    const res = await authApi.signup(body);
-    authStorage.setSession(res.accessToken, res.refreshToken, res.user);
-    setUser(res.user);
+    // No setSession/setUser: signup issues no tokens now.
+    return authApi.signup(body);
   };
 
   const logout = async () => {

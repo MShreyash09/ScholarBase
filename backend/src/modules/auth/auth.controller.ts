@@ -2,7 +2,10 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post } from "@nestjs/commo
 import {
   AuthResponseDto,
   ForgotPasswordResponseDto,
+  ResendVerificationResponseDto,
+  SignupResponseDto,
   UserDto,
+  VerifyEmailResponseDto,
 } from "@scholarbase/shared-types";
 import { Public } from "../../common/decorators/public.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
@@ -13,14 +16,18 @@ import { LoginDto } from "./dto/login.dto";
 import { RefreshDto } from "./dto/refresh.dto";
 import { ForgotPasswordDto } from "./dto/forgot-password.dto";
 import { ResetPasswordDto } from "./dto/reset-password.dto";
+import { VerifyEmailDto } from "./dto/verify-email.dto";
+import { ResendVerificationDto } from "./dto/resend-verification.dto";
 
 @Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  // Returns a message, not a session: the account cannot be used until the
+  // emailed confirmation link is opened.
   @Public()
   @Post("signup")
-  signup(@Body() dto: SignupDto): Promise<AuthResponseDto> {
+  signup(@Body() dto: SignupDto): Promise<SignupResponseDto> {
     return this.authService.signup(dto);
   }
 
@@ -56,6 +63,27 @@ export class AuthController {
   @Post("reset-password")
   async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
     await this.authService.resetPassword(dto.token, dto.password);
+  }
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post("verify-email")
+  verifyEmail(@Body() dto: VerifyEmailDto): Promise<VerifyEmailResponseDto> {
+    return this.authService.verifyEmail(dto.token);
+  }
+
+  // Uniform response for the same reason forgot-password has one: this must not
+  // reveal whether an address is registered, or already confirmed.
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post("resend-verification")
+  async resendVerification(
+    @Body() dto: ResendVerificationDto,
+  ): Promise<ResendVerificationResponseDto> {
+    await this.authService.resendVerification(dto.email);
+    return {
+      message: "If that email needs confirming, a new link is on its way.",
+    };
   }
 
   @HttpCode(HttpStatus.NO_CONTENT)
