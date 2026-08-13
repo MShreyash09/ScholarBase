@@ -133,12 +133,10 @@ function ResendForm() {
     setError(null);
     setIsSubmitting(true);
 
-    if (!email.endsWith("@mmcoe.edu.in")) {
-      setError("Only @mmcoe.edu.in emails are allowed.");
-      setIsSubmitting(false);
-      return;
-    }
-
+    // No domain check: this resends to an account that already exists, and a
+    // client-side rejection would make some addresses answer differently from
+    // others — exactly the enumeration signal the uniform server response is
+    // designed to remove.
     try {
       const res = await authApi.resendVerification(email);
       setSent(res.message);

@@ -5,7 +5,12 @@
  * storage key is derived from user-controlled input, and that a missing row
  * produces 404 rather than a broken presigned URL.
  */
-import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { PapersService } from "../../src/modules/papers/papers.service";
 import { NotesService } from "../../src/modules/notes/notes.service";
 import { PrismaService } from "../../src/prisma/prisma.service";
@@ -208,10 +213,139 @@ describe("IT-RES URL issuance", () => {
     (prisma.questionPaper.findUnique as jest.Mock).mockResolvedValue(row);
     (prisma.note.findUnique as jest.Mock).mockResolvedValue(row);
 
-    await papers.getViewUrl("p1");
+    // Authenticated, so the free-paper lookup is skipped entirely.
+    await papers.getViewUrl("p1", true);
     expect((fileUrls.getViewUrl as jest.Mock).mock.calls.at(-1)?.[0]).toBe("papers");
 
     await notes.getViewUrl("n1");
     expect((fileUrls.getViewUrl as jest.Mock).mock.calls.at(-1)?.[0]).toBe("notes");
+  });
+});
+
+/**
+ * IT-GATE — signed-out visitors get one free paper per semester.
+ *
+ * The rule is computed server-side so the lock the UI draws and the lock the API
+ * enforces cannot drift. These tests pin both halves: the `locked` flag on the
+ * DTO, and the hard refusal on the URL endpoints.
+ */
+describe("IT-GATE paper access gating", () => {
+  // Full rows: the same findMany mock serves both freePaperIds() (which needs
+  // the joined subject) and findAll() (which maps rows through toDto).
+  const catalogueRow = (
+    id: string,
+    academicYear: number,
+    department: string,
+    semester: number,
+  ) => ({
+    id,
+    subjectId: `${department}-${semester}`,
+    examTypeId: "e1",
+    academicYear,
+    fileName: `${id}.pdf`,
+    fileSizeBytes: 10,
+    mimeType: "application/pdf",
+    fileKey: "k",
+    uploadStatus: "ready",
+    ingestionStatus: "not_ingested",
+    createdAt: new Date("2026-01-01T00:00:00Z"),
+    updatedAt: new Date("2026-01-01T00:00:00Z"),
+    subject: { department, semester },
+  });
+
+  // Two departments x two semesters, newest-first within each group.
+  const CATALOGUE = [
+    catalogueRow("it4-new", 2026, "IT", 4),
+    catalogueRow("it4-old", 2025, "IT", 4),
+    catalogueRow("it3-new", 2026, "IT", 3),
+    catalogueRow("cs4-new", 2026, "CS", 4),
+    catalogueRow("cs4-old", 2024, "CS", 4),
+  ];
+
+  function gateDeps() {
+    const d = makeDeps();
+    // freePaperIds() reads the whole table; findMany is also used by findAll,
+    // so it is pointed at the catalogue for both.
+    (d.prisma.questionPaper.findMany as jest.Mock).mockResolvedValue(CATALOGUE);
+    return d;
+  }
+
+  const paperRow = (id: string) => ({
+    id,
+    subjectId: "s1",
+    examTypeId: "e1",
+    academicYear: 2026,
+    fileName: `${id}.pdf`,
+    fileSizeBytes: 10,
+    mimeType: "application/pdf",
+    fileKey: "k",
+    uploadStatus: "ready",
+    ingestionStatus: "not_ingested",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+
+  it("IT-GATE-001: exactly one paper per (department, semester) is free", async () => {
+    const { papers } = gateDeps();
+    const dtos = await papers.findAll({}, false);
+
+    const unlocked = dtos.filter((d) => !d.locked).map((d) => d.id).sort();
+    // Newest in each group wins: IT/4, IT/3, CS/4 -> three groups, three frees.
+    expect(unlocked).toEqual(["cs4-new", "it3-new", "it4-new"]);
+    expect(dtos.filter((d) => d.locked).map((d) => d.id).sort()).toEqual(["cs4-old", "it4-old"]);
+  });
+
+  it("IT-GATE-002: nothing is locked for a logged-in caller", async () => {
+    const { papers } = gateDeps();
+    const dtos = await papers.findAll({}, true);
+    expect(dtos.every((d) => d.locked === false)).toBe(true);
+  });
+
+  it("IT-GATE-003: the free paper is stable across calls (not order-dependent)", async () => {
+    const { papers } = gateDeps();
+    const first = (await papers.findAll({}, false)).filter((d) => !d.locked).map((d) => d.id);
+    const second = (await papers.findAll({}, false)).filter((d) => !d.locked).map((d) => d.id);
+    expect(first).toEqual(second);
+  });
+
+  it("IT-GATE-004: SECURITY — anonymous view/download of a locked paper is refused", async () => {
+    const { papers, prisma, fileUrls } = gateDeps();
+    (prisma.questionPaper.findUnique as jest.Mock).mockResolvedValue(paperRow("it4-old"));
+
+    await expect(papers.getViewUrl("it4-old", false)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(papers.getDownloadUrl("it4-old", false)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    // No presigned URL may be minted for a refused request.
+    expect(fileUrls.getViewUrl).not.toHaveBeenCalled();
+    expect(fileUrls.getDownloadUrl).not.toHaveBeenCalled();
+  });
+
+  it("IT-GATE-005: anonymous access to the free paper is allowed", async () => {
+    const { papers, prisma, fileUrls } = gateDeps();
+    (prisma.questionPaper.findUnique as jest.Mock).mockResolvedValue(paperRow("it4-new"));
+
+    await expect(papers.getViewUrl("it4-new", false)).resolves.toBeDefined();
+    await expect(papers.getDownloadUrl("it4-new", false)).resolves.toBeDefined();
+    expect(fileUrls.getViewUrl).toHaveBeenCalled();
+  });
+
+  it("IT-GATE-006: a logged-in caller may open a paper that is locked for visitors", async () => {
+    const { papers, prisma } = gateDeps();
+    (prisma.questionPaper.findUnique as jest.Mock).mockResolvedValue(paperRow("it4-old"));
+
+    await expect(papers.getViewUrl("it4-old", true)).resolves.toBeDefined();
+    await expect(papers.getDownloadUrl("it4-old", true)).resolves.toBeDefined();
+  });
+
+  it("IT-GATE-007: a missing paper still 404s rather than leaking the lock state", async () => {
+    const { papers, prisma } = gateDeps();
+    (prisma.questionPaper.findUnique as jest.Mock).mockResolvedValue(null);
+
+    // 404 must win over 401 — otherwise the gate becomes an existence oracle
+    // for ids that were never in the archive.
+    await expect(papers.getViewUrl("does-not-exist", false)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

@@ -17,12 +17,11 @@ export function ForgotPasswordPage() {
     setError(null);
     setIsSubmitting(true);
 
-    if (!email.endsWith("@mmcoe.edu.in")) {
-      setError("Only @mmcoe.edu.in emails are allowed.");
-      setIsSubmitting(false);
-      return;
-    }
-
+    // Same reasoning as LoginPage: this acts on an existing account, so the
+    // signup allowlist doesn't apply. Blocking other domains here would leave
+    // the admin with no way to recover their own password. It would also
+    // reintroduce the enumeration leak this page is careful to avoid — a
+    // client-side rejection is an observable difference between addresses.
     try {
       const res = await authApi.forgotPassword(email);
       setMessage(res.message);

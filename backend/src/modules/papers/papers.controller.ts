@@ -13,7 +13,7 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { DownloadUrlDto, FileViewUrlDto, QuestionPaperDto, UserRole } from "@scholarbase/shared-types";
-import { Public } from "../../common/decorators/public.decorator";
+import { OptionalAuth } from "../../common/decorators/optional-auth.decorator";
 import { Roles } from "../../common/decorators/roles.decorator";
 import { CurrentUser } from "../../common/decorators/current-user.decorator";
 import { AuthenticatedUser } from "../../common/types/authenticated-user";
@@ -26,30 +26,43 @@ import { FindPapersQueryDto } from "./dto/find-papers-query.dto";
 export class PapersController {
   constructor(private readonly papersService: PapersService) {}
 
-  @Public()
+  // @OptionalAuth rather than @Public throughout: these routes still serve
+  // anonymous visitors, but they need to know whether a caller is signed in,
+  // because a signed-out visitor only gets one free paper per semester.
+  @OptionalAuth()
   @Get()
-  findAll(@Query() query: FindPapersQueryDto): Promise<QuestionPaperDto[]> {
-    return this.papersService.findAll(query);
+  findAll(
+    @Query() query: FindPapersQueryDto,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<QuestionPaperDto[]> {
+    return this.papersService.findAll(query, Boolean(user));
   }
 
-  @Public()
+  @OptionalAuth()
   @Get(":id")
-  findOne(@Param("id") id: string): Promise<QuestionPaperDto> {
-    return this.papersService.findOne(id);
+  findOne(
+    @Param("id") id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<QuestionPaperDto> {
+    return this.papersService.findOne(id, Boolean(user));
   }
 
-  @Public()
+  @OptionalAuth()
   @Get(":id/download")
-  getDownloadUrl(@Param("id") id: string): Promise<DownloadUrlDto> {
-    return this.papersService.getDownloadUrl(id);
+  getDownloadUrl(
+    @Param("id") id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<DownloadUrlDto> {
+    return this.papersService.getDownloadUrl(id, Boolean(user));
   }
 
-  // Public for the same reason downloads are: question papers are open to
-  // everyone, logged in or not.
-  @Public()
+  @OptionalAuth()
   @Get(":id/view")
-  getViewUrl(@Param("id") id: string): Promise<FileViewUrlDto> {
-    return this.papersService.getViewUrl(id);
+  getViewUrl(
+    @Param("id") id: string,
+    @CurrentUser() user?: AuthenticatedUser,
+  ): Promise<FileViewUrlDto> {
+    return this.papersService.getViewUrl(id, Boolean(user));
   }
 
   @Roles(UserRole.ADMIN)

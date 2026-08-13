@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Eye, Download } from "lucide-react";
+import { Eye, Download, Lock } from "lucide-react";
 import type { FileViewUrlDto } from "@scholarbase/shared-types";
 import { subjectsApi } from "@/lib/api/academic";
 import { papersApi } from "@/lib/api/papers";
@@ -18,6 +18,8 @@ type ViewerKind = "paper" | "note";
 export function SubjectPage() {
   const { subjectId } = useParams<{ subjectId: string }>();
   const { isAuthenticated } = useAuth();
+  // Passed to /login so the student lands back on this subject after signing in.
+  const location = useLocation();
 
   const [viewerDoc, setViewerDoc] = useState<FileViewUrlDto | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
@@ -91,28 +93,70 @@ export function SubjectPage() {
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {papers?.map((paper) => (
-              <Card key={paper.id}>
+              <Card key={paper.id} interactive className="group relative overflow-hidden">
                 <CardHeader>
-                  <CardTitle className="text-base">{paper.fileName}</CardTitle>
+                  <CardTitle className="flex items-start justify-between gap-2 text-base">
+                    <span className="transition-colors group-hover:text-brand">{paper.fileName}</span>
+                    {/* Small persistent marker so a locked paper still reads as
+                        locked without hovering — the overlay below is the
+                        flourish, not the only signal. */}
+                    {paper.locked && (
+                      <Lock
+                        className="mt-0.5 h-4 w-4 shrink-0 text-foreground-subtle"
+                        aria-hidden="true"
+                      />
+                    )}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-wrap items-center justify-between gap-2">
-                  <Badge>{paper.academicYear}</Badge>
                   <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={() => void openViewer("paper", paper.id)}>
-                      <Eye className="h-4 w-4" aria-hidden="true" />
-                      View
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void downloadPaper(paper.id)}
-                      aria-label={`Download ${paper.fileName}`}
-                    >
-                      <Download className="h-4 w-4" aria-hidden="true" />
-                      Download
-                    </Button>
+                    <Badge>{paper.academicYear}</Badge>
+                    {/* The one paper a signed-out visitor may open, so the
+                        offer is visible rather than something they discover by
+                        clicking a locked one. */}
+                    {!isAuthenticated && !paper.locked && <Badge variant="success">Free preview</Badge>}
                   </div>
+                  {!paper.locked && (
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" onClick={() => void openViewer("paper", paper.id)}>
+                        <Eye className="h-4 w-4" aria-hidden="true" />
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void downloadPaper(paper.id)}
+                        aria-label={`Download ${paper.fileName}`}
+                      >
+                        <Download className="h-4 w-4" aria-hidden="true" />
+                        Download
+                      </Button>
+                    </div>
+                  )}
                 </CardContent>
+
+                {/* Hover reveal for locked papers.
+                    Covers the whole card so a tap anywhere works on phones,
+                    where there is no hover at all — without that, a touch user
+                    would have no way to reach the login prompt. It is a real
+                    <Link>, so it is keyboard reachable and the overlay is
+                    revealed on focus as well as hover. */}
+                {paper.locked && (
+                  <Link
+                    to="/login"
+                    state={{ from: location }}
+                    aria-label={`Log in to view ${paper.fileName}`}
+                    className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-surface/90 opacity-0 backdrop-blur-[2px] transition-opacity duration-200 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand group-hover:opacity-100"
+                  >
+                    <Lock className="h-5 w-5 text-brand" aria-hidden="true" />
+                    <span className="text-sm font-semibold text-foreground">
+                      Log in to view all papers
+                    </span>
+                    <span className="text-xs text-foreground-muted">
+                      One paper per semester is free
+                    </span>
+                  </Link>
+                )}
               </Card>
             ))}
           </div>

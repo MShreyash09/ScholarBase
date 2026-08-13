@@ -1,5 +1,6 @@
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { Lock } from "lucide-react";
 import { DEPARTMENTS, type QuestionPaperDto, type SubjectDto } from "@scholarbase/shared-types";
 import { subjectsApi } from "@/lib/api/academic";
 import { examTypesApi } from "@/lib/api/exam-types";
@@ -25,20 +26,45 @@ function PaperRow({
   };
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-b-0">
+    <div className="group flex items-center justify-between gap-3 rounded-lg border-b border-border px-2 py-3 transition-colors last:border-b-0 hover:bg-muted/60">
       {/* Links into SubjectPage, the only place View (and Notes) live — this
           row used to be a dead end with no way to reach either. */}
-      <Link to={`/years/${yearNumber}/${subject.id}`} className="hover:underline">
-        <p className="font-semibold text-foreground">{subject.name}</p>
+      <Link to={`/years/${yearNumber}/${subject.id}`} className="min-w-0">
+        <p className="truncate font-semibold text-foreground transition-colors group-hover:text-brand">
+          {subject.name}
+        </p>
         <p className="text-xs text-foreground-muted">{subject.code}</p>
       </Link>
-      <div className="flex flex-wrap gap-2 justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {papers.length > 0 ? (
-          papers.map((p) => (
-            <Button key={p.id} size="sm" onClick={() => download(p.id)}>
-              {p.academicYear}
-            </Button>
-          ))
+          papers.map((p) =>
+            // A locked paper links to login instead of downloading. The button
+            // is still rendered (rather than hidden) so the archive's depth is
+            // visible — that is the reason to sign up.
+            p.locked ? (
+              // The pill swaps its label on hover: the year normally, "Log in"
+              // when pointed at. Named group so it reacts to its own hover, not
+              // the whole row's.
+              <Button
+                key={p.id}
+                asChild
+                size="sm"
+                variant="outline"
+                className="group/lock"
+                title="Log in to view all papers"
+              >
+                <Link to="/login" aria-label={`Log in to view the ${p.academicYear} paper`}>
+                  <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="group-hover/lock:hidden">{p.academicYear}</span>
+                  <span className="hidden group-hover/lock:inline">Log in</span>
+                </Link>
+              </Button>
+            ) : (
+              <Button key={p.id} size="sm" onClick={() => download(p.id)}>
+                {p.academicYear}
+              </Button>
+            ),
+          )
         ) : (
           <Badge variant="muted">Not uploaded yet</Badge>
         )}

@@ -21,12 +21,13 @@ export function LoginPage() {
     setIsUnverified(false);
     setIsSubmitting(true);
 
-    if (!email.endsWith("@mmcoe.edu.in")) {
-      setError("Only @mmcoe.edu.in emails are allowed.");
-      setIsSubmitting(false);
-      return;
-    }
-
+    // No domain check here on purpose. The allowlist governs who may *register*
+    // — it is enforced server-side at signup against allowed_email_domains. A
+    // login only ever concerns an account that already passed that check, so
+    // re-applying a hardcoded domain here does nothing for security and locks
+    // out any account outside it: notably the seeded admin
+    // (admin@youruniversity.edu.in), who would then be unable to reach the
+    // upload panel at all.
     try {
       await login({ email, password });
       const from = (location.state as { from?: Location })?.from?.pathname ?? "/";

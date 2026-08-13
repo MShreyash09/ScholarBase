@@ -936,15 +936,19 @@ async function owaspConfiguration() {
     severity: inject.status === 400 ? "-" : "Medium",
   });
 
+  // Signup no longer echoes the created user back, so the stored value has to
+  // be read from the database rather than from the response body.
+  const xssEmail = `qa-xss-${Date.now()}@${ALLOWED_DOMAIN}`;
   const xss = await req("POST", "/auth/signup", {
     body: {
-      email: `qa-xss-${Date.now()}@${ALLOWED_DOMAIN}`,
+      email: xssEmail,
       password: "QaPassword123",
       fullName: "<script>alert(1)</script>",
     },
   });
-  if (xss.json?.user?.email) createdEmails.push(xss.json.user.email);
-  const storedRaw = xss.json?.user?.fullName === "<script>alert(1)</script>";
+  if (xss.status === 201 || xss.status === 200) createdEmails.push(xssEmail);
+  const xssRow = await getPrisma().user.findUnique({ where: { email: xssEmail } });
+  const storedRaw = xssRow?.fullName === "<script>alert(1)</script>";
   record({
     id: "SEC-INJ-002",
     phase: "Security",

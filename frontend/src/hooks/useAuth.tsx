@@ -8,6 +8,7 @@ import {
 } from "@scholarbase/shared-types";
 import { authApi } from "@/lib/api/auth";
 import { authStorage } from "@/lib/auth-storage";
+import { queryClient } from "@/lib/query-client";
 
 interface AuthContextValue {
   user: UserDto | null;
@@ -32,6 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await authApi.login(body);
     authStorage.setSession(res.accessToken, res.refreshToken, res.user);
     setUser(res.user);
+    // Server responses are auth-dependent — question papers come back with a
+    // `locked` flag that differs for visitors and students — and the client
+    // caches them for 30s. Without this, a student who just logged in keeps
+    // seeing the locked view they were served moments earlier.
+    queryClient.clear();
   };
 
   const signup = async (body: SignupRequestDto) => {
@@ -43,6 +49,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const refreshToken = authStorage.getRefreshToken();
     authStorage.clear();
     setUser(null);
+    // Drop every cached response too, or the signed-out user keeps being shown
+    // unlocked papers (and any other data fetched while authenticated) until
+    // the cache goes stale.
+    queryClient.clear();
     if (refreshToken) {
       await authApi.logout(refreshToken).catch(() => undefined);
     }

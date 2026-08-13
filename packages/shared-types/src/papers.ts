@@ -10,6 +10,15 @@ export interface QuestionPaperDto {
   uploadStatus: UploadStatus;
   ingestionStatus: IngestionStatus;
   createdAt: string;
+  /**
+   * True when the caller must log in before the file can be opened. Signed-out
+   * visitors get exactly one free paper per semester; everything else is
+   * locked. Always false for a logged-in user.
+   *
+   * The server decides this rather than the client, so the lock the UI draws
+   * and the lock the API enforces can never drift apart.
+   */
+  locked: boolean;
 }
 
 export interface CreateQuestionPaperMetaDto {
