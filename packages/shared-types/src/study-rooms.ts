@@ -93,6 +93,15 @@ export enum StudyRoomClientEvent {
   TYPING = "chat:typing",
   SIGNAL = "webrtc:signal",
   MEDIA_STATE = "media:state",
+  WHITEBOARD_CLAIM = "whiteboard:claim",
+  WHITEBOARD_RELEASE = "whiteboard:release",
+  WHITEBOARD_STROKE = "whiteboard:stroke",
+  WHITEBOARD_UNDO = "whiteboard:undo",
+  WHITEBOARD_CLEAR = "whiteboard:clear",
+  WHITEBOARD_REQUEST_DRAW = "whiteboard:request-draw",
+  WHITEBOARD_GRANT = "whiteboard:grant",
+  WHITEBOARD_REVOKE = "whiteboard:revoke",
+  SCREEN_POINTER = "screen:pointer",
 }
 
 /** Events the server pushes to the browser. */
@@ -107,6 +116,157 @@ export enum StudyRoomServerEvent {
   /** The room was closed under us — moderation, or the creator ending it. */
   CLOSED = "room:closed",
   ERROR = "room:error",
+  /** Full board sync: sent on join, and to whoever opens the board. */
+  WHITEBOARD_STATE = "whiteboard:state",
+  WHITEBOARD_STROKE = "whiteboard:stroke",
+  WHITEBOARD_UNDO = "whiteboard:undo",
+  WHITEBOARD_CLEARED = "whiteboard:cleared",
+  /** Only ever sent to the board owner. */
+  WHITEBOARD_DRAW_REQUESTED = "whiteboard:draw-requested",
+  WHITEBOARD_GRANTS = "whiteboard:grants",
+  SCREEN_POINTER = "screen:pointer",
+}
+
+// --- screen-share laser pointer --------------------------------------------
+
+/**
+ * A pointer position over the shared screen, in **normalized 0–1 coordinates
+ * relative to the video content** — not the tile, and never pixels.
+ *
+ * Two reasons it must be normalized. Every viewer's window is a different size,
+ * so pixels would land somewhere different on each screen. And the tile renders
+ * the video with `object-contain`, so the picture is letterboxed inside its
+ * box — coordinates are relative to the visible picture, with the bars excluded.
+ *
+ * `visible: false` retracts the pointer when the cursor leaves the video.
+ */
+export interface ScreenPointerPayload {
+  roomId: string;
+  x: number;
+  y: number;
+  visible: boolean;
+}
+
+export interface ScreenPointerBroadcastPayload extends ScreenPointerPayload {
+  socketId: string;
+  userId: string;
+  fullName: string;
+}
+
+/** Outgoing pointer updates are throttled to this interval. Emitting per
+ * pointermove would put ~100 messages/sec on the gateway per person. */
+export const SCREEN_POINTER_THROTTLE_MS = 40;
+
+/** A pointer with no update for this long is treated as gone, so a dot cannot
+ * be left frozen on everyone's screen by a dropped connection. */
+export const SCREEN_POINTER_STALE_MS = 2500;
+
+// --- whiteboard ------------------------------------------------------------
+
+/** How long an empty room keeps its board before it is wiped.
+ *
+ * Not instant on purpose. "Everyone left" and "the last two people reloaded at
+ * the same moment" look identical to the server, and losing a board mid-session
+ * is far worse than a stale board lingering for a couple of minutes. */
+export const WHITEBOARD_EMPTY_ROOM_GRACE_MS = 2 * 60 * 1000;
+
+/** Hard cap on stored strokes per room, so a long session cannot grow the
+ * in-memory board without bound. Oldest strokes are dropped first. */
+export const WHITEBOARD_MAX_STROKES = 3000;
+
+/** Points accepted in a single stroke chunk. Clients batch on a timer rather
+ * than emitting per pointermove; this bounds a malicious or buggy client. */
+export const WHITEBOARD_MAX_POINTS_PER_CHUNK = 512;
+
+export const WHITEBOARD_MAX_STROKE_WIDTH = 24;
+
+/**
+ * One drawn line.
+ *
+ * `points` is a flat [x0,y0,x1,y1,…] list in **normalized 0–1 coordinates**,
+ * relative to the canvas — never pixels. Participants have different window
+ * sizes, so pixel coordinates would land in a different place on every screen
+ * but the author's.
+ */
+export interface WhiteboardStroke {
+  id: string;
+  authorId: string;
+  authorName: string;
+  color: string;
+  width: number;
+  points: number[];
+}
+
+/** Everything a client needs to render the board from cold. */
+export interface WhiteboardStateDto {
+  roomId: string;
+  /** socketId of the current owner, or null when the board is unclaimed. */
+  ownerSocketId: string | null;
+  ownerName: string | null;
+  strokes: WhiteboardStroke[];
+  /** userIds the owner has allowed to draw. The owner is not listed here. */
+  grants: string[];
+}
+
+export interface WhiteboardClaimPayload {
+  roomId: string;
+}
+
+/**
+ * A chunk of an in-progress stroke. The client keeps sending chunks with the
+ * same `strokeId` as the pointer moves, then a final one with `done: true`.
+ * Streaming rather than sending whole strokes is what makes drawing appear
+ * live to everyone else.
+ */
+export interface WhiteboardStrokePayload {
+  roomId: string;
+  strokeId: string;
+  color: string;
+  width: number;
+  points: number[];
+  done: boolean;
+}
+
+export interface WhiteboardStrokeBroadcastPayload extends WhiteboardStrokePayload {
+  authorId: string;
+  authorName: string;
+}
+
+export interface WhiteboardUndoPayload {
+  roomId: string;
+}
+
+/** Undo is scoped to the caller's own strokes — never anyone else's. */
+export interface WhiteboardUndoBroadcastPayload {
+  roomId: string;
+  strokeId: string;
+}
+
+export interface WhiteboardClearPayload {
+  roomId: string;
+}
+
+export interface WhiteboardRequestDrawPayload {
+  roomId: string;
+}
+
+/** Transient — a nudge to the owner, not stored state. */
+export interface WhiteboardDrawRequestedPayload {
+  roomId: string;
+  userId: string;
+  fullName: string;
+}
+
+export interface WhiteboardGrantPayload {
+  roomId: string;
+  userId: string;
+}
+
+export interface WhiteboardGrantsPayload {
+  roomId: string;
+  ownerSocketId: string | null;
+  ownerName: string | null;
+  grants: string[];
 }
 
 export interface RoomClosedPayload {

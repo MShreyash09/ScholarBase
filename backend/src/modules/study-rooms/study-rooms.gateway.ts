@@ -24,6 +24,15 @@ import {
   StudyRoomServerEvent,
   TypingPayload,
   UserRole,
+  WhiteboardClaimPayload,
+  WhiteboardClearPayload,
+  WhiteboardGrantPayload,
+  WhiteboardRequestDrawPayload,
+  WhiteboardStrokePayload,
+  WhiteboardUndoPayload,
+  ScreenPointerPayload,
+  WHITEBOARD_MAX_POINTS_PER_CHUNK,
+  WHITEBOARD_MAX_STROKE_WIDTH,
 } from "@scholarbase/shared-types";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuthenticatedUser } from "../../common/types/authenticated-user";
@@ -124,6 +133,9 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
         socketId: participant.socketId,
         userId: participant.userId,
       });
+      // If this socket owned the board, presence has already released it — tell
+      // the room so the slot shows as free and someone else can take it.
+      this.broadcastBoardMeta(roomId);
     }
   }
 
@@ -173,6 +185,33 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
     });
 
     client.to(roomId).emit(StudyRoomServerEvent.PARTICIPANT_JOINED, { roomId, participant });
+
+    // A late joiner needs the board as it stands. Sent only to them, and only
+    // when a board exists — rooms that never opened one send nothing.
+    const board = this.presence.getBoard(roomId);
+    if (board) {
+      client.emit(StudyRoomServerEvent.WHITEBOARD_STATE, {
+        roomId,
+        ownerSocketId: board.ownerSocketId,
+        ownerName: board.ownerName,
+        strokes: board.strokes,
+        grants: [...board.grants],
+      });
+    }
+  }
+
+  /** Tells the room who owns the board and who may draw. Emitted whenever
+   * either changes, including when an owner disconnects. */
+  private broadcastBoardMeta(roomId: string): void {
+    const board = this.presence.getBoard(roomId);
+    if (!board) return;
+
+    this.server.to(roomId).emit(StudyRoomServerEvent.WHITEBOARD_GRANTS, {
+      roomId,
+      ownerSocketId: board.ownerSocketId,
+      ownerName: board.ownerName,
+      grants: [...board.grants],
+    });
   }
 
   @SubscribeMessage(StudyRoomClientEvent.LEAVE)
@@ -192,6 +231,7 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
         socketId: participant.socketId,
         userId: participant.userId,
       });
+      this.broadcastBoardMeta(roomId);
     }
   }
 
@@ -302,6 +342,237 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
       socketId: client.id,
       userId: participant.userId,
       ...state,
+    });
+  }
+
+  // --- whiteboard ----------------------------------------------------------
+  //
+  // Every rule below is enforced here rather than in the browser. The client
+  // hides the pen when you cannot draw, but that is a courtesy — a hand-written
+  // socket frame ignores the UI, exactly as with the screen-share claim above.
+
+  @SubscribeMessage(StudyRoomClientEvent.WHITEBOARD_CLAIM)
+  handleWhiteboardClaim(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: WhiteboardClaimPayload,
+  ): void {
+    const roomId = payload?.roomId;
+    if (!roomId || !this.isInRoom(client, roomId)) return;
+
+    const user = client.data.user;
+    if (!this.presence.claimBoard(roomId, client.id, user.fullName)) {
+      return this.fail(client, "Someone else is running the whiteboard.");
+    }
+
+    const board = this.presence.getBoard(roomId);
+    if (!board) return;
+
+    // The claimant gets the full board; everyone else just needs to know who
+    // owns it now.
+    client.emit(StudyRoomServerEvent.WHITEBOARD_STATE, {
+      roomId,
+      ownerSocketId: board.ownerSocketId,
+      ownerName: board.ownerName,
+      strokes: board.strokes,
+      grants: [...board.grants],
+    });
+    this.broadcastBoardMeta(roomId);
+  }
+
+  @SubscribeMessage(StudyRoomClientEvent.WHITEBOARD_RELEASE)
+  handleWhiteboardRelease(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: WhiteboardClaimPayload,
+  ): void {
+    const roomId = payload?.roomId;
+    if (!roomId || !this.isInRoom(client, roomId)) return;
+
+    // Strokes survive: releasing hands the pen over, it does not erase the work.
+    this.presence.releaseBoard(roomId, client.id);
+    this.broadcastBoardMeta(roomId);
+  }
+
+  @SubscribeMessage(StudyRoomClientEvent.WHITEBOARD_STROKE)
+  handleWhiteboardStroke(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: WhiteboardStrokePayload,
+  ): void {
+    const roomId = payload?.roomId;
+    if (!roomId || !this.isInRoom(client, roomId)) return;
+
+    const user = client.data.user;
+    if (!this.presence.canDraw(roomId, client.id, user.id)) return;
+
+    const strokeId = typeof payload.strokeId === "string" ? payload.strokeId : "";
+    const points = Array.isArray(payload.points) ? payload.points : [];
+    if (!strokeId || points.length === 0) return;
+    // Points arrive as a flat [x,y,…] list, so an odd length is malformed.
+    if (points.length % 2 !== 0) return;
+    if (points.length > WHITEBOARD_MAX_POINTS_PER_CHUNK * 2) return;
+    // Coordinates are normalized; anything outside 0–1 is not from our client.
+    if (!points.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= 1)) {
+      return;
+    }
+
+    const width = Math.min(Math.max(Number(payload.width) || 1, 1), WHITEBOARD_MAX_STROKE_WIDTH);
+    const color = typeof payload.color === "string" ? payload.color.slice(0, 32) : "#000000";
+
+    const accepted = this.presence.appendStroke(
+      roomId,
+      { id: strokeId, authorId: user.id, authorName: user.fullName, color, width },
+      points,
+    );
+    // Rejected when the stroke id belongs to somebody else — a client must not
+    // be able to extend another person's line.
+    if (!accepted) return;
+
+    // To everyone but the sender: the drawer already rendered it locally, and
+    // echoing would fight their in-progress line.
+    client.to(roomId).emit(StudyRoomServerEvent.WHITEBOARD_STROKE, {
+      roomId,
+      strokeId,
+      color,
+      width,
+      points,
+      done: Boolean(payload.done),
+      authorId: user.id,
+      authorName: user.fullName,
+    });
+  }
+
+  @SubscribeMessage(StudyRoomClientEvent.WHITEBOARD_UNDO)
+  handleWhiteboardUndo(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: WhiteboardUndoPayload,
+  ): void {
+    const roomId = payload?.roomId;
+    if (!roomId || !this.isInRoom(client, roomId)) return;
+
+    const user = client.data.user;
+    if (!this.presence.canDraw(roomId, client.id, user.id)) return;
+
+    // Scoped to the caller's own strokes inside presence, so undo can never
+    // reach across and delete someone else's work.
+    const strokeId = this.presence.undoLastStroke(roomId, user.id);
+    if (!strokeId) return;
+
+    this.server.to(roomId).emit(StudyRoomServerEvent.WHITEBOARD_UNDO, { roomId, strokeId });
+  }
+
+  @SubscribeMessage(StudyRoomClientEvent.WHITEBOARD_CLEAR)
+  handleWhiteboardClear(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: WhiteboardClearPayload,
+  ): void {
+    const roomId = payload?.roomId;
+    if (!roomId || !this.isInRoom(client, roomId)) return;
+
+    // Wiping everyone's work is the owner's call alone.
+    if (!this.presence.isBoardOwner(roomId, client.id)) {
+      return this.fail(client, "Only whoever opened the whiteboard can clear it.");
+    }
+
+    this.presence.clearStrokes(roomId);
+    this.server.to(roomId).emit(StudyRoomServerEvent.WHITEBOARD_CLEARED, { roomId });
+  }
+
+  @SubscribeMessage(StudyRoomClientEvent.WHITEBOARD_REQUEST_DRAW)
+  handleWhiteboardRequestDraw(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: WhiteboardRequestDrawPayload,
+  ): void {
+    const roomId = payload?.roomId;
+    if (!roomId || !this.isInRoom(client, roomId)) return;
+
+    const board = this.presence.getBoard(roomId);
+    if (!board?.ownerSocketId) return;
+
+    const user = client.data.user;
+    // Deliberately transient: a request is a nudge, not stored state, so an
+    // ignored one leaves nothing behind to clean up.
+    this.server.to(board.ownerSocketId).emit(StudyRoomServerEvent.WHITEBOARD_DRAW_REQUESTED, {
+      roomId,
+      userId: user.id,
+      fullName: user.fullName,
+    });
+  }
+
+  @SubscribeMessage(StudyRoomClientEvent.WHITEBOARD_GRANT)
+  handleWhiteboardGrant(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: WhiteboardGrantPayload,
+  ): void {
+    this.setWhiteboardGrant(client, payload, true);
+  }
+
+  @SubscribeMessage(StudyRoomClientEvent.WHITEBOARD_REVOKE)
+  handleWhiteboardRevoke(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: WhiteboardGrantPayload,
+  ): void {
+    this.setWhiteboardGrant(client, payload, false);
+  }
+
+  private setWhiteboardGrant(
+    client: AuthedSocket,
+    payload: WhiteboardGrantPayload,
+    allowed: boolean,
+  ): void {
+    const roomId = payload?.roomId;
+    if (!roomId || !this.isInRoom(client, roomId)) return;
+
+    if (!this.presence.isBoardOwner(roomId, client.id)) {
+      return this.fail(client, "Only whoever opened the whiteboard can change who draws.");
+    }
+
+    const userId = typeof payload.userId === "string" ? payload.userId : "";
+    if (!userId) return;
+    // Only people actually in the room can be granted, so a stale or invented
+    // id cannot accumulate in the grant set.
+    if (!this.presence.list(roomId).some((p) => p.userId === userId)) return;
+
+    if (this.presence.setGrant(roomId, userId, allowed) === undefined) return;
+    this.broadcastBoardMeta(roomId);
+  }
+
+  // --- screen-share laser pointer -------------------------------------------
+
+  /**
+   * Relays a pointer position over the shared screen. Nothing is stored: a
+   * pointer is only meaningful while it is moving, and a stale one is worse
+   * than none. Clients drop dots that stop updating.
+   */
+  @SubscribeMessage(StudyRoomClientEvent.SCREEN_POINTER)
+  handleScreenPointer(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: ScreenPointerPayload,
+  ): void {
+    const roomId = payload?.roomId;
+    if (!roomId || !this.isInRoom(client, roomId)) return;
+
+    // Only meaningful while somebody is actually sharing — otherwise there is
+    // no picture to point at, and this becomes a free broadcast channel.
+    if (!this.presence.currentPresenter(roomId)) return;
+
+    const { x, y } = payload;
+    // Checked as numbers rather than coerced: JSON turns NaN and undefined into
+    // null, and Number(null) is 0 — so coercing would silently accept a
+    // malformed coordinate as a real point at the top-left corner.
+    if (typeof x !== "number" || typeof y !== "number") return;
+    // Coordinates are normalized against the video content; anything outside
+    // 0–1 did not come from our client.
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    if (x < 0 || x > 1 || y < 0 || y > 1) return;
+
+    const user = client.data.user;
+    client.to(roomId).emit(StudyRoomServerEvent.SCREEN_POINTER, {
+      roomId,
+      x,
+      y,
+      visible: Boolean(payload.visible),
+      socketId: client.id,
+      userId: user.id,
+      fullName: user.fullName,
     });
   }
 

@@ -1,6 +1,7 @@
 import type { StudyRoomParticipantDto } from "@scholarbase/shared-types";
 import { Button } from "@/components/ui/button";
 import type { UseStudyRoomMediaResult } from "@/hooks/useStudyRoomMedia";
+import type { RemotePointer } from "@/hooks/useScreenPointer";
 import { VideoTile } from "./VideoTile";
 
 interface CallPanelProps {
@@ -8,9 +9,20 @@ interface CallPanelProps {
   self: StudyRoomParticipantDto | null;
   participants: StudyRoomParticipantDto[];
   disabled: boolean;
+  /** Other people's laser pointers over the shared screen. */
+  pointers?: RemotePointer[];
+  /** Reports this user's pointer as it moves over the shared picture. */
+  onPointerPosition?: (x: number, y: number, visible: boolean) => void;
 }
 
-export function CallPanel({ media, self, participants, disabled }: CallPanelProps) {
+export function CallPanel({
+  media,
+  self,
+  participants,
+  disabled,
+  pointers,
+  onPointerPosition,
+}: CallPanelProps) {
   const {
     inCall,
     isStarting,
@@ -87,6 +99,8 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
 
       {inCall && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {/* The pointer overlay only attaches to whichever tile is the screen
+              share — pointing at a camera tile means nothing. */}
           <VideoTile
             stream={localStream}
             label={self?.fullName ?? "You"}
@@ -94,6 +108,8 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
             audioEnabled={audioEnabled}
             videoEnabled={videoEnabled || screenEnabled}
             screenEnabled={screenEnabled}
+            pointers={screenEnabled ? pointers : undefined}
+            onPointerPosition={screenEnabled ? onPointerPosition : undefined}
           />
           {peersInCall.map((peer) => (
             <VideoTile
@@ -103,6 +119,8 @@ export function CallPanel({ media, self, participants, disabled }: CallPanelProp
               audioEnabled={peer.audioEnabled}
               videoEnabled={(peer.videoEnabled || peer.screenEnabled) && Boolean(remoteStreams[peer.socketId])}
               screenEnabled={peer.screenEnabled}
+              pointers={peer.screenEnabled ? pointers : undefined}
+              onPointerPosition={peer.screenEnabled ? onPointerPosition : undefined}
             />
           ))}
         </div>

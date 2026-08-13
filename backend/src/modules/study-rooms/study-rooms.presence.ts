@@ -1,5 +1,27 @@
-import { Injectable } from "@nestjs/common";
-import { StudyRoomParticipantDto } from "@scholarbase/shared-types";
+import { Injectable, OnModuleDestroy } from "@nestjs/common";
+import {
+  StudyRoomParticipantDto,
+  WhiteboardStroke,
+  WHITEBOARD_EMPTY_ROOM_GRACE_MS,
+  WHITEBOARD_MAX_STROKES,
+} from "@scholarbase/shared-types";
+
+/**
+ * A room's shared drawing surface.
+ *
+ * Held separately from the participant map because it has to outlive it: when
+ * the last person leaves, `rooms` drops the entry immediately, but the board
+ * lingers for a grace period in case they were only reloading.
+ */
+interface Board {
+  ownerSocketId: string | null;
+  ownerName: string | null;
+  strokes: WhiteboardStroke[];
+  /** userIds the owner has allowed to draw. */
+  grants: Set<string>;
+  /** Pending wipe, scheduled when the room empties and cancelled on rejoin. */
+  wipeTimer?: NodeJS.Timeout;
+}
 
 /**
  * In-memory registry of who is connected to which room.
@@ -11,8 +33,11 @@ import { StudyRoomParticipantDto } from "@scholarbase/shared-types";
  * Redis adapter plus a shared store here.
  */
 @Injectable()
-export class StudyRoomsPresence {
+export class StudyRoomsPresence implements OnModuleDestroy {
   private readonly rooms = new Map<string, Map<string, StudyRoomParticipantDto>>();
+
+  /** roomId -> shared whiteboard. Absent until someone opens one. */
+  private readonly boards = new Map<string, Board>();
 
   /**
    * roomId -> socketId of the one participant allowed to share their screen.
@@ -32,6 +57,8 @@ export class StudyRoomsPresence {
       this.rooms.set(roomId, room);
     }
     room.set(participant.socketId, participant);
+    // Somebody is back before the grace period elapsed — keep their board.
+    this.cancelBoardWipe(roomId);
   }
 
   /**
@@ -68,9 +95,12 @@ export class StudyRoomsPresence {
     const participant = room.get(socketId);
     room.delete(socketId);
     this.releasePresenter(roomId, socketId);
+    this.releaseBoard(roomId, socketId);
     if (room.size === 0) {
       this.rooms.delete(roomId);
       this.presenters.delete(roomId);
+      // The board is NOT dropped here — it waits out the grace period.
+      this.scheduleBoardWipe(roomId);
     }
     return participant;
   }
@@ -85,9 +115,11 @@ export class StudyRoomsPresence {
         removed.push({ roomId, participant });
         room.delete(socketId);
         this.releasePresenter(roomId, socketId);
+        this.releaseBoard(roomId, socketId);
         if (room.size === 0) {
           this.rooms.delete(roomId);
           this.presenters.delete(roomId);
+          this.scheduleBoardWipe(roomId);
         }
       }
     }
@@ -95,10 +127,164 @@ export class StudyRoomsPresence {
     return removed;
   }
 
-  /** Drops the whole room's presence at once — used when a room is closed. */
+  /** Drops the whole room's presence at once — used when a room is closed.
+   *
+   * The board goes immediately here, with no grace period: unlike everyone
+   * happening to leave, a closed room is not coming back. */
   clearRoom(roomId: string): void {
     this.rooms.delete(roomId);
     this.presenters.delete(roomId);
+    this.destroyBoard(roomId);
+  }
+
+  // --- whiteboard ----------------------------------------------------------
+
+  /**
+   * Takes the room's board. Mirrors `claimPresenter`: succeeds if the board is
+   * free, already this socket's, or held by a socket that has since left — so
+   * an owner whose tab crashed cannot freeze the board for everyone else.
+   */
+  claimBoard(roomId: string, socketId: string, ownerName: string): boolean {
+    const board = this.boards.get(roomId);
+    const current = board?.ownerSocketId;
+    if (current && current !== socketId && this.rooms.get(roomId)?.has(current)) {
+      return false;
+    }
+
+    if (!board) {
+      this.boards.set(roomId, {
+        ownerSocketId: socketId,
+        ownerName,
+        strokes: [],
+        grants: new Set(),
+      });
+      return true;
+    }
+
+    board.ownerSocketId = socketId;
+    board.ownerName = ownerName;
+    return true;
+  }
+
+  /** No-op unless this socket actually owns the board. Strokes are kept: the
+   * drawing outlives whoever happened to open it. */
+  releaseBoard(roomId: string, socketId: string): void {
+    const board = this.boards.get(roomId);
+    if (board?.ownerSocketId === socketId) {
+      board.ownerSocketId = null;
+      board.ownerName = null;
+      // Grants were the departed owner's to give, so they go with them.
+      board.grants.clear();
+    }
+  }
+
+  getBoard(roomId: string): Board | undefined {
+    return this.boards.get(roomId);
+  }
+
+  /** Owner always may; anyone else needs an explicit grant. */
+  canDraw(roomId: string, socketId: string, userId: string): boolean {
+    const board = this.boards.get(roomId);
+    if (!board) return false;
+    if (board.ownerSocketId === socketId) return true;
+    return board.grants.has(userId);
+  }
+
+  isBoardOwner(roomId: string, socketId: string): boolean {
+    return this.boards.get(roomId)?.ownerSocketId === socketId;
+  }
+
+  setGrant(roomId: string, userId: string, allowed: boolean): string[] | undefined {
+    const board = this.boards.get(roomId);
+    if (!board) return undefined;
+    if (allowed) board.grants.add(userId);
+    else board.grants.delete(userId);
+    return [...board.grants];
+  }
+
+  /**
+   * Appends a chunk of an in-progress stroke, creating the stroke on its first
+   * chunk. Returns false when the chunk is rejected, which happens if the board
+   * is gone or the stroke belongs to someone else — a client must not be able
+   * to extend another person's line.
+   */
+  appendStroke(
+    roomId: string,
+    stroke: { id: string; authorId: string; authorName: string; color: string; width: number },
+    points: number[],
+  ): boolean {
+    const board = this.boards.get(roomId);
+    if (!board) return false;
+
+    const existing = board.strokes.find((s) => s.id === stroke.id);
+    if (existing) {
+      if (existing.authorId !== stroke.authorId) return false;
+      existing.points.push(...points);
+      return true;
+    }
+
+    board.strokes.push({ ...stroke, points: [...points] });
+    // Oldest-first eviction keeps memory bounded on a long session.
+    if (board.strokes.length > WHITEBOARD_MAX_STROKES) {
+      board.strokes.splice(0, board.strokes.length - WHITEBOARD_MAX_STROKES);
+    }
+    return true;
+  }
+
+  /** Removes the caller's most recent stroke and returns its id. Scoped to the
+   * caller so undo can never delete someone else's work. */
+  undoLastStroke(roomId: string, authorId: string): string | undefined {
+    const board = this.boards.get(roomId);
+    if (!board) return undefined;
+
+    for (let i = board.strokes.length - 1; i >= 0; i -= 1) {
+      if (board.strokes[i].authorId === authorId) {
+        const [removed] = board.strokes.splice(i, 1);
+        return removed.id;
+      }
+    }
+    return undefined;
+  }
+
+  clearStrokes(roomId: string): void {
+    const board = this.boards.get(roomId);
+    if (board) board.strokes = [];
+  }
+
+  /** Wipes an empty room's board after the grace period. Deliberately delayed:
+   * a simultaneous reload by the last participants must not destroy the work. */
+  private scheduleBoardWipe(roomId: string): void {
+    const board = this.boards.get(roomId);
+    if (!board || board.wipeTimer) return;
+
+    board.wipeTimer = setTimeout(() => {
+      // Re-check: someone may have rejoined and left again in the meantime.
+      if (this.count(roomId) === 0) this.destroyBoard(roomId);
+    }, WHITEBOARD_EMPTY_ROOM_GRACE_MS);
+    // Don't hold the process open just for a pending wipe.
+    board.wipeTimer.unref?.();
+  }
+
+  private cancelBoardWipe(roomId: string): void {
+    const board = this.boards.get(roomId);
+    if (board?.wipeTimer) {
+      clearTimeout(board.wipeTimer);
+      board.wipeTimer = undefined;
+    }
+  }
+
+  private destroyBoard(roomId: string): void {
+    const board = this.boards.get(roomId);
+    if (board?.wipeTimer) clearTimeout(board.wipeTimer);
+    this.boards.delete(roomId);
+  }
+
+  /** Clears pending timers so tests and shutdowns don't leak them. */
+  onModuleDestroy(): void {
+    for (const board of this.boards.values()) {
+      if (board.wipeTimer) clearTimeout(board.wipeTimer);
+    }
+    this.boards.clear();
   }
 
   get(roomId: string, socketId: string): StudyRoomParticipantDto | undefined {
