@@ -1,0 +1,677 @@
+[
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\video-content-rect.spec.ts",
+  "name": "UT-VCR content rect UT-VCR-001: a 16:9 capture in a taller box gets horizontal bars",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\video-content-rect.spec.ts",
+  "name": "UT-VCR content rect UT-VCR-002: a 4:3 capture in a wider box gets vertical bars",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\video-content-rect.spec.ts",
+  "name": "UT-VCR content rect UT-VCR-003: falls back to the whole box before metadata loads",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\video-content-rect.spec.ts",
+  "name": "UT-VCR pointer mapping UT-VCR-004: the centre of the picture is (0.5, 0.5)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\video-content-rect.spec.ts",
+  "name": "UT-VCR pointer mapping UT-VCR-005: the picture's top edge is y=0, NOT the box's top edge",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\video-content-rect.spec.ts",
+  "name": "UT-VCR pointer mapping UT-VCR-006: SECURITY/CORRECTNESS — a pointer over a letterbox bar is rejected",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\video-content-rect.spec.ts",
+  "name": "UT-VCR pointer mapping UT-VCR-007: the element's own page offset is subtracted",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\video-content-rect.spec.ts",
+  "name": "UT-VCR pointer mapping UT-VCR-008: round-trips — normalize then position lands back where it started",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\video-content-rect.spec.ts",
+  "name": "UT-VCR pointer mapping UT-VCR-009: the same normalized point maps to different pixels on different windows",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\viewable-mime.spec.ts",
+  "name": "UT-MIME isViewableMimeType UT-MIME-001: accepts every type declared viewable",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\viewable-mime.spec.ts",
+  "name": "UT-MIME isViewableMimeType UT-MIME-002: accepts PDF, the only type papers uploads can produce",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\viewable-mime.spec.ts",
+  "name": "UT-MIME isViewableMimeType UT-MIME-003: rejects renderable-but-dangerous types",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\viewable-mime.spec.ts",
+  "name": "UT-MIME isViewableMimeType UT-MIME-004: rejects office types that cannot render in an iframe",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\viewable-mime.spec.ts",
+  "name": "UT-MIME isViewableMimeType UT-MIME-005: rejects empty/garbage input rather than throwing",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\viewable-mime.spec.ts",
+  "name": "UT-MIME isViewableMimeType UT-MIME-006: is case-sensitive and does not strip parameters (documents current behaviour)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\duration.spec.ts",
+  "name": "UT-DUR parseDurationMs UT-DUR-001: converts each supported unit to milliseconds",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\duration.spec.ts",
+  "name": "UT-DUR parseDurationMs UT-DUR-002: parses the production defaults used by the app",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\duration.spec.ts",
+  "name": "UT-DUR parseDurationMs UT-DUR-003: tolerates surrounding whitespace",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\duration.spec.ts",
+  "name": "UT-DUR parseDurationMs UT-DUR-004: tolerates internal whitespace between amount and unit",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\duration.spec.ts",
+  "name": "UT-DUR parseDurationMs UT-DUR-005: rejects malformed values rather than silently defaulting",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\duration.spec.ts",
+  "name": "UT-DUR parseDurationMs UT-DUR-006: accepts zero without throwing (boundary)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the old rule reproduces the failure UT-MESH-001: simultaneous joins make BOTH sides offer — glare on every pair",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the old rule reproduces the failure UT-MESH-002: with frames still in flight, one pair dies while the others work",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the old rule reproduces the failure UT-MESH-003: retrying cannot save it — the rule itself has no arbitration",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the id rule removes glare by construction UT-MESH-004: with everyone visible, every pair gets exactly one offer",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the id rule removes glare by construction UT-MESH-005: no pair can ever double-offer, whoever clicks first",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the id rule removes glare by construction UT-MESH-006: the same in-flight state that broke the old rule now connects everything",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the id rule removes glare by construction UT-MESH-006b: a pair whose initiator is still blind is pending, not broken",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the id rule removes glare by construction UT-MESH-007: reconciliation completes the mesh on the next pass",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the id rule removes glare by construction UT-MESH-008: reconciling again is idempotent — no duplicate offers",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\mesh-negotiation.spec.ts",
+  "name": "UT-MESH the id rule removes glare by construction UT-MESH-009: scales — a room of six has one offerer per pair and no glare",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO SignupDto UT-DTO-001: normalizes email to trimmed lowercase before validation",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO SignupDto UT-DTO-002: rejects malformed email addresses",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO SignupDto UT-DTO-003: enforces a minimum password length",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO SignupDto UT-DTO-004: rejects an empty full name",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO SignupDto UT-DTO-005: signup's password floor agrees with the shared MIN_PASSWORD_LENGTH constant",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO SignupDto UT-DTO-006: does not enforce any password complexity (documents current policy)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO LoginDto UT-DTO-007: normalizes email so login is case-insensitive",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO password reset DTOs UT-DTO-008: ForgotPasswordDto requires a valid email",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO password reset DTOs UT-DTO-009: ResetPasswordDto rejects an empty token",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO password reset DTOs UT-DTO-010: ResetPasswordDto enforces MIN_PASSWORD_LENGTH",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO password reset DTOs UT-DTO-011: ForgotPasswordDto does not normalize case (asymmetry with login/signup)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO query DTOs UT-DTO-012: coerces a numeric query string to a number",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO query DTOs UT-DTO-013: treats an empty query value as absent rather than 0",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO query DTOs UT-DTO-014: rejects a non-numeric year instead of silently filtering by NaN",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO query DTOs UT-DTO-015: rejects a non-UUID subjectId (prevents raw values reaching Prisma)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO query DTOs UT-DTO-016: enforces message limit boundaries 1..200",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\dto-validation.spec.ts",
+  "name": "UT-DTO query DTOs UT-DTO-017: enforces academic-year sanity bounds on upload",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB board ownership IT-WB-001: the first claimant owns the board",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB board ownership IT-WB-002: a second person cannot take a board that is actively owned",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB board ownership IT-WB-003: re-claiming your own board is a no-op, not a failure",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB board ownership IT-WB-004: a board held by a socket that has left can be claimed (crashed-owner recovery)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB board ownership IT-WB-005: releasing keeps the strokes — it hands over the pen, it does not erase",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB board ownership IT-WB-006: grants are dropped when the owner leaves — they were the owner's to give",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB board ownership IT-WB-007: releasing a board you do not own does nothing",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB draw permission IT-WB-008: the owner may always draw",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB draw permission IT-WB-009: everyone else is refused until granted, and again once revoked",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB draw permission IT-WB-010: nobody can draw on a room that has no board",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB strokes IT-WB-011: chunks with the same id extend one stroke rather than creating many",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB strokes IT-WB-012: SECURITY — you cannot extend somebody else's stroke",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB strokes IT-WB-013: undo removes only the caller's most recent stroke",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB strokes IT-WB-014: undo with nothing of your own returns undefined and changes nothing",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB strokes IT-WB-015: the stroke buffer is bounded, dropping oldest first",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB strokes IT-WB-016: clear empties the strokes but keeps the board and its owner",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB empty-room lifecycle IT-WB-017: the board survives the room emptying, until the grace period elapses",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB empty-room lifecycle IT-WB-018: rejoining inside the grace window saves the board (the reload case)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB empty-room lifecycle IT-WB-019: closing the room drops the board immediately, with no grace period",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\whiteboard.presence.spec.ts",
+  "name": "IT-WB empty-room lifecycle IT-WB-020: a disconnect releases the board across every room the socket was in",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\storage.service.spec.ts",
+  "name": "UT-STO StorageService UT-STO-001: download URL requests an attachment disposition",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\storage.service.spec.ts",
+  "name": "UT-STO StorageService UT-STO-002: view URL requests an inline disposition and pins the content type",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\storage.service.spec.ts",
+  "name": "UT-STO StorageService UT-STO-003: neutralizes a double quote so the filename cannot escape the quoted string",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\storage.service.spec.ts",
+  "name": "UT-STO StorageService UT-STO-004: neutralizes CR and LF so a header cannot be injected",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\storage.service.spec.ts",
+  "name": "UT-STO StorageService UT-STO-005: neutralizes backslash escapes",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\storage.service.spec.ts",
+  "name": "UT-STO StorageService UT-STO-006: does NOT encode non-ASCII filenames (documents known defect QA-004)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\storage.service.spec.ts",
+  "name": "UT-STO StorageService UT-STO-007: applies the documented default expiries (5 min download, 30 min view)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\storage.service.spec.ts",
+  "name": "UT-STO StorageService UT-STO-008: resolves logical bucket names through env overrides",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\stored-file-url.service.spec.ts",
+  "name": "UT-SFU StoredFileUrlService UT-SFU-001: forwards bucket and file key to the storage layer for downloads",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\stored-file-url.service.spec.ts",
+  "name": "UT-SFU StoredFileUrlService UT-SFU-002: forwards the mime type for views (required to render inline)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\stored-file-url.service.spec.ts",
+  "name": "UT-SFU StoredFileUrlService UT-SFU-003: serializes expiry as an ISO string in the download DTO",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\stored-file-url.service.spec.ts",
+  "name": "UT-SFU StoredFileUrlService UT-SFU-004: view DTO carries the metadata the viewer needs, and no storage key",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\unit\\stored-file-url.service.spec.ts",
+  "name": "UT-SFU StoredFileUrlService UT-SFU-005: is agnostic to the record's concrete model (structural typing)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES papers upload IT-RES-001: rejects a request with no file attached",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES papers upload IT-RES-002: rejects a non-PDF declared content type",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES papers upload IT-RES-003: SECURITY — accepts HTML bytes when the client declares application/pdf",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES papers upload IT-RES-004: refuses a byte-identical duplicate via checksum",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES papers upload IT-RES-005: derives a namespaced storage key with a random component",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES papers upload IT-RES-006: SECURITY — traversal sequences in the filename survive into the storage key",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES notes upload IT-RES-007: accepts the documented office formats",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES notes upload IT-RES-008: rejects an unsupported type for notes",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES URL issuance IT-RES-009: papers download/view 404 when the row does not exist",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES URL issuance IT-RES-010: notes download/view 404 when the row does not exist",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-RES URL issuance IT-RES-011: each resource presigns against its own bucket",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-GATE paper access gating IT-GATE-001: exactly one paper per (department, semester) is free",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-GATE paper access gating IT-GATE-002: nothing is locked for a logged-in caller",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-GATE paper access gating IT-GATE-003: the free paper is stable across calls (not order-dependent)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-GATE paper access gating IT-GATE-004: SECURITY — anonymous view/download of a locked paper is refused",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-GATE paper access gating IT-GATE-005: anonymous access to the free paper is allowed",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-GATE paper access gating IT-GATE-006: a logged-in caller may open a paper that is locked for visitors",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\resources.service.spec.ts",
+  "name": "IT-GATE paper access gating IT-GATE-007: a missing paper still 404s rather than leaking the lock state",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH signup IT-AUTH-001: rejects an email outside the allowed university domains",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH signup IT-AUTH-002: rejects a duplicate account with 409 rather than overwriting",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH signup IT-AUTH-003: stores an argon2 hash, never the plaintext password",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH signup IT-AUTH-004: normalizes the email to lowercase before persisting",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH signup IT-AUTH-025: issues NO session at signup — the account is unusable until confirmed",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH signup IT-AUTH-026: the confirmation link mailed at signup is a hash-stored single-use token",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH signup IT-AUTH-027: verification hash is domain-separated from BOTH the refresh and reset hashes",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH login IT-AUTH-005: returns an identical generic error for unknown user and wrong password",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH login IT-AUTH-006: issues tokens and never returns the password hash to the client",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH login IT-AUTH-007: persists only an HMAC of the refresh token, never the raw value",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH email verification gate IT-AUTH-028: login is refused with 403 while the address is unconfirmed",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH email verification gate IT-AUTH-029: the gate runs only after the password check, so it can't confirm an account for free",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH email verification gate IT-AUTH-030: login succeeds once the address is confirmed",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH email verification gate IT-AUTH-031: verifyEmail marks the account verified and burns the token atomically",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH email verification gate IT-AUTH-032: an unknown or expired confirmation token is rejected with one generic message",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH email verification gate IT-AUTH-033: re-opening a spent link for an already-verified account succeeds instead of erroring",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH email verification gate IT-AUTH-034: resendVerification is silent for unknown and already-verified addresses",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH email verification gate IT-AUTH-035: resendVerification issues a fresh link and kills the previous one",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH email verification gate IT-AUTH-036: a mail failure during signup does not fail the signup itself",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH refresh IT-AUTH-008: rejects an expired refresh token",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH refresh IT-AUTH-009: rejects an unknown/revoked refresh token",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH refresh IT-AUTH-010: rotates the token — the presented one is revoked after use",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH forgot password IT-AUTH-011: resolves silently for an unregistered address (no enumeration via response)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH forgot password IT-AUTH-012: invalidates any outstanding reset link before issuing a new one",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH forgot password IT-AUTH-013: stores only a hash of the reset token; the raw token goes to email only",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH forgot password IT-AUTH-014: reset-token hash is domain-separated from the refresh-token hash",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH forgot password IT-AUTH-015: honours the configured TTL when setting expiry",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH forgot password IT-AUTH-016: a mail delivery failure does not surface to the caller",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH forgot password IT-AUTH-017: SECURITY — a DB failure DOES surface, creating a 500-vs-200 enumeration oracle",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH forgot password IT-AUTH-018: SECURITY — the registered path performs strictly more awaited work (timing oracle)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH reset password IT-AUTH-019: rejects an unknown token",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH reset password IT-AUTH-020: rejects an already-used token (single use enforced)",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH reset password IT-AUTH-021: rejects an expired token",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH reset password IT-AUTH-022: gives the same generic message for unknown, used and expired tokens",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH reset password IT-AUTH-023: on success, burns the token and revokes every live session atomically",
+  "status": "passed"
+ },
+ {
+  "file": "C:\\Users\\shrey\\OneDrive\\Desktop\\scholarbase\\backend\\test\\integration\\auth.service.spec.ts",
+  "name": "IT-AUTH reset password IT-AUTH-024: the new password is argon2-hashed before it reaches the database",
+  "status": "passed"
+ }
+]

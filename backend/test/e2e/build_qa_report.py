@@ -70,136 +70,159 @@ with open("jest-flat.json", encoding="utf-8") as f:
     jest = json.load(f)
 with open("qa-results.json", encoding="utf-8") as f:
     api = json.load(f)
+with open("qa-realtime-results.json", encoding="utf-8") as f:
+    realtime = json.load(f)
 
 unit = [t for t in jest if "/unit/" in t["file"].replace("\\", "/")]
 integ = [t for t in jest if "/integration/" in t["file"].replace("\\", "/")]
 
 UAT = [
-    ("UAT-001", "Anonymous landing page renders department catalogue", "6 departments listed, no console errors", "PASS"),
-    ("UAT-002", "Browse Dept > Year > Semester > Subject to a paper", "Subject page lists both papers with View + Download", "PASS"),
-    ("UAT-003", "Open in-app document viewer with storage unreachable", "Error shown, but title bar still reads 'Loading...'", "PARTIAL"),
-    ("UAT-004", "Close viewer via Escape key", "Modal closed; body scroll-lock correctly released", "PASS"),
-    ("UAT-005", "Notes tab with no notes uploaded", "Correct empty state message", "PASS"),
-    ("UAT-006", "Open /reset-password with no token in URL", "'Reset link missing' with recovery link", "PASS"),
-    ("UAT-007", "Anonymous user opens /admin", "Redirected to /login", "PASS"),
-    ("UAT-008", "Sign up using the domain shown in the field placeholder", "Rejected; error does not name an accepted domain", "FAIL"),
-    ("UAT-009", "Sign up with an allowlisted college domain", "Account created, session established, redirected home", "PASS"),
-    ("UAT-010", "Logged-in student opens /admin", "Redirected away; admin UI not rendered", "PASS"),
-    ("UAT-011", "Toggle dark theme and reload", "Theme applied and persisted across reload", "PASS"),
-    ("UAT-012", "Navigate to an unknown URL", "Entirely blank page - no 404 view, header absent", "FAIL"),
-    ("UAT-013", "Subject page at 375px mobile viewport", "No horizontal overflow; tabs usable", "PASS"),
-    ("UAT-014", "Console/network hygiene on primary journeys", "No console errors on home/subject/auth pages", "PASS"),
+    ("UAT-001", "Anonymous landing page renders department catalogue", "12 department links; verified on the production build", "PASS"),
+    ("UAT-002", "Subject holding only locked papers", "Both papers show the lock overlay, no View button", "PASS"),
+    ("UAT-003", "Subject holding the semester's free paper", "Free-preview badge + View/Download on that one paper only", "PASS"),
+    ("UAT-004", "Hover a locked paper card", "Overlay reveals 'Log in to view all papers'", "PASS"),
+    ("UAT-005", "Anonymous user opens /admin", "Redirected to /login", "PASS"),
+    ("UAT-006", "Logged-in student opens /admin", "Redirected away; admin UI not rendered", "PASS"),
+    ("UAT-007", "Sign up with an allowlisted college domain", "Check-your-inbox panel; no session stored", "PASS"),
+    ("UAT-008", "Attempt login before confirming the address", "403 with actionable message and a resend link", "PASS"),
+    ("UAT-009", "Open the emailed confirmation link", "Confirmed; exactly one POST despite StrictMode double-effect", "PASS"),
+    ("UAT-010", "Log in after confirming", "Session established; emailVerifiedAt populated", "PASS"),
+    ("UAT-011", "Open /reset-password with no token", "'Reset link missing' with a recovery link", "PASS"),
+    ("UAT-012", "Whiteboard: claim, grant, draw, undo, clear", "Verified against a second live client", "PASS"),
+    ("UAT-013", "Whiteboard: a remote stroke paints on the canvas", "3,550 to 15,500 painted px, colour matched the sender", "PASS"),
+    ("UAT-014", "Navigate to an unknown URL", "Custom 404 with header and routes back", "PASS"),
+    ("UAT-015", "Toggle dark theme and reload", "Applied and persisted across reload", "PASS"),
+    ("UAT-016", "Home and subject pages at 375px", "No horizontal overflow", "PASS"),
+    ("UAT-017", "Console hygiene on the production build", "Zero errors; dev-only HMR noise excluded", "PASS"),
 ]
 
 DEFECTS = [
-    ("QA-01", "High", "API4",
+    ("QA-01", "High", "API4", "OPEN",
      "No brute-force protection on authentication",
-     "25 consecutive failed logins against the admin account were all processed (~6s, zero 429s). "
-     "No rate limiter is registered in AppModule, so password guessing is bounded only by network speed.",
-     "SEC-API4-001",
-     "Add @nestjs/throttler globally (e.g. 5 attempts / 15 min per IP+email on /auth/login), "
-     "plus progressive backoff or temporary lockout."),
-    ("QA-02", "Medium", "API6",
+     "25 consecutive failed logins were all processed (~3s, zero 429s). No rate limiter is "
+     "registered, so password guessing is bounded only by network speed. More urgent now that "
+     "resend-verification and forgot-password can also burn the 300/day Brevo quota.",
+     "SEC-API4-001, SEC-API6-001",
+     "Add @nestjs/throttler globally, with tighter per-route limits on the auth endpoints."),
+    ("QA-02", "Medium", "API6", "OPEN",
      "Forgot-password timing reveals whether an account exists",
-     "Registered addresses averaged 486ms vs 79ms for unregistered (6.2x; 2.5x on a second run). The "
-     "registered branch performs two extra DB writes and an awaited outbound mail call. The uniform "
-     "response body the code implements does not hide this.",
+     "Registered addresses averaged 656ms against 88ms for unregistered (7.45x). The registered "
+     "branch does two extra DB writes and an awaited outbound mail call; the uniform response body "
+     "does not hide that.",
      "SEC-API6-002, IT-AUTH-018",
-     "Dispatch the email without awaiting it (fire-and-forget with .catch logging), or normalise total "
-     "handler time so both branches cost the same."),
-    ("QA-03", "Medium", "API6",
+     "Dispatch the mail without awaiting it, or normalise total handler time."),
+    ("QA-03", "Medium", "API6", "OPEN",
      "Database error on forgot-password creates a 500-vs-200 oracle",
-     "The two passwordResetToken writes sit outside the try/catch that guards mail sending. A DB fault "
-     "returns 500 for a registered address but a clean 200 for an unregistered one - a binary account "
-     "existence signal that is more reliable than timing.",
+     "The passwordResetToken writes sit outside the try/catch guarding delivery, so a DB fault "
+     "returns 500 for a registered address and a clean 200 for an unregistered one.",
      "IT-AUTH-017",
-     "Wrap the whole post-lookup block in try/catch and always return the same generic 200."),
-    ("QA-04", "Medium", "API6",
-     "Password-reset requests are not rate limited",
-     "Six consecutive reset requests for one address were all accepted. Each consumes provider email "
-     "quota (Brevo free tier is 300/day) and mails the account owner, enabling inbox flooding and "
-     "trivial quota exhaustion.",
-     "SEC-API6-001",
-     "Throttle per email address and per IP (e.g. 3 per hour)."),
-    ("QA-05", "Medium", "API8",
+     "Wrap the whole post-lookup block and always return the same generic 200."),
+    ("QA-05", "Medium", "API8", "OPEN",
      "CORS accepts requests from any origin",
-     "Access-Control-Allow-Origin returns '*'. main.ts uses NestFactory.create(AppModule, { cors: true }), "
-     "so any website can call the API from a visitor's browser.",
+     "Access-Control-Allow-Origin returns *, so any website can call the API from a visitor's browser.",
      "SEC-API8-001",
-     "Replace with an explicit allowlist: cors: { origin: [APP_BASE_URL], credentials: true }."),
-    ("QA-06", "Medium", "API8",
+     "Replace with an explicit origin allowlist."),
+    ("QA-06", "Medium", "API8", "OPEN",
      "All standard security response headers are missing",
-     "X-Content-Type-Options, X-Frame-Options, Strict-Transport-Security and Content-Security-Policy "
-     "are all absent - helmet is not registered. The app is framable (clickjacking) and MIME-sniffable.",
+     "X-Content-Type-Options, X-Frame-Options, HSTS and CSP are all absent because helmet is not "
+     "registered. The app is framable and MIME-sniffable.",
      "SEC-API8-002..005",
-     "app.use(helmet()) in main.ts; set HSTS only behind HTTPS."),
-    ("QA-07", "Medium", "API4",
+     "app.use(helmet()) in main.ts."),
+    ("QA-07", "Medium", "API4", "OPEN",
      "Oversized request body returns 500 instead of 413",
-     "A 2MB JSON body produced HTTP 500. Express's PayloadTooLargeError is not an HttpException, so the "
-     "global filter maps it to a generic 500 - an availability/observability problem that masks abuse.",
+     "A 2MB JSON body produced HTTP 500: Express's PayloadTooLargeError is not an HttpException, so "
+     "the global filter maps it to a generic 500.",
      "SEC-API4-002",
-     "Set an explicit body limit and map PayloadTooLargeError to 413 in HttpExceptionFilter."),
-    ("QA-08", "Medium", "-",
-     "Unknown routes render a completely blank page",
-     "App.tsx has no catch-all <Route path='*'>. React Router matches nothing, so #root stays empty - not "
-     "even the header renders. Vercel's SPA rewrite serves index.html for every path, so any typo, stale "
-     "bookmark or shared dead link is a white screen in production.",
-     "UAT-012",
-     "Add a catch-all route rendering a 404 page inside AppLayout."),
-    ("QA-09", "Medium", "API3",
+     "Set an explicit body limit and map PayloadTooLargeError to 413."),
+    ("QA-09", "Medium", "API3", "OPEN",
      "Uploaded file type is trusted from the client, never sniffed",
-     "Validation checks only the multipart Content-Type header. A file whose bytes are HTML but declared "
-     "application/pdf is accepted, stored, and later served with response-content-type=application/pdf "
-     "into an iframe. Mitigating factor: upload is admin-only today.",
+     "Validation checks only the multipart Content-Type header, so HTML bytes declared as "
+     "application/pdf are stored and later served with that forced type into an iframe. Mitigating "
+     "factor: uploading is admin-only.",
      "IT-RES-003",
-     "Verify magic bytes (e.g. %PDF-) server-side before accepting, and re-derive the stored mimeType "
-     "from the sniffed type rather than the client's claim."),
-    ("QA-10", "Medium", "-",
+     "Verify magic bytes server-side and derive the stored mimeType from them."),
+    ("QA-10", "Medium", "-", "OPEN",
      "Non-ASCII filenames are not encoded in Content-Disposition",
-     "quoteFileName strips quotes/CR/LF but passes non-Latin-1 characters through raw into a header value. "
-     "A paper named with Devanagari/CJK characters can make presigning throw, breaking view and download "
-     "for that file permanently.",
+     "quoteFileName strips quotes, CR and LF but passes non-Latin-1 characters through raw, which "
+     "can make presigning throw and break view and download for that file permanently.",
      "UT-STO-006",
-     "Emit RFC 5987 filename*=UTF-8''<pct-encoded> alongside an ASCII-only filename fallback."),
-    ("QA-11", "Low", "API9",
+     "Emit RFC 5987 filename*=UTF-8 alongside an ASCII-only fallback."),
+    ("QA-11", "Low", "API9", "OPEN",
      "Framework disclosed via X-Powered-By",
-     "Responses advertise 'X-Powered-By: Express', narrowing an attacker's search for version-specific "
-     "exploits.",
+     "Responses advertise X-Powered-By: Express, narrowing the search for version-specific exploits.",
      "SEC-API9-001",
-     "app.disable('x-powered-by') (helmet does this automatically)."),
-    ("QA-12", "Low", "-",
-     "Document viewer title reads 'Loading...' while showing an error",
-     "The header renders {doc?.fileName ?? 'Loading...'}, which only distinguishes 'has document' from "
-     "'no document'. During an error the body shows the failure while the title bar still says Loading - "
-     "confirmed live in UAT.",
-     "UAT-003",
+     "app.disable('x-powered-by'); helmet does this automatically."),
+    ("QA-12", "Low", "-", "OPEN",
+     "Document viewer title reads Loading while showing an error",
+     "The header only distinguishes 'has document' from 'no document', so during an error the title "
+     "bar still says Loading while the body shows the failure.",
+     "UAT (viewer)",
      "Branch the title on isLoading / error / loaded explicitly."),
-    ("QA-13", "Low", "-",
-     "Signup placeholder advertises a domain the server rejects",
-     "The email field placeholder reads 'username@mmcoe.edu.in' but the only allowlisted domain is "
-     "mmcoe.edu.in. Submitting the suggested domain fails, and the error never names an accepted domain.",
-     "UAT-008",
-     "Drive the placeholder and the error message from the allowlist, e.g. 'Use your @mmcoe.edu.in address'."),
-    ("QA-14", "Low", "API3",
+    ("QA-14", "Low", "API3", "OPEN",
      "User-supplied fullName is stored without sanitisation",
-     "A <script> payload in fullName is persisted verbatim. React escapes on render so there is no XSS "
-     "today, but the raw value would be live for any future non-React consumer (email templates, exports, "
-     "a mobile client).",
+     "A script payload in fullName is persisted verbatim. React escapes on render so there is no XSS "
+     "today, but the raw value would be live for any future non-React consumer.",
      "SEC-INJ-002",
      "Strip or encode control markup on write, and keep escaping on output."),
-    ("QA-15", "Low", "-",
+    ("QA-15", "Low", "-", "OPEN",
      "Path-traversal sequences survive into the storage object key",
-     "An upload named ../../etc/passwd.pdf yields a key containing that sequence. S3-compatible stores "
-     "treat keys as opaque strings so nothing escapes the bucket today, but it breaks any consumer that "
-     "maps keys onto a filesystem.",
+     "An upload named ../../etc/passwd.pdf yields a key containing that sequence. S3-compatible "
+     "stores treat keys as opaque strings, so nothing escapes the bucket today.",
      "IT-RES-006",
      "Normalise the basename before composing the key."),
-    ("QA-16", "Low", "API2",
+    ("QA-16", "Low", "API2", "OPEN",
      "Password policy enforces length only",
-     "An eight-character password such as '12345678' is accepted at both signup and reset. No complexity, "
-     "no breached-password check.",
+     "An eight-character password such as 12345678 is accepted. No complexity rule and no "
+     "breached-password screening.",
      "UT-DTO-006",
      "Raise the floor to 10-12 characters and screen against a common-password list."),
+    ("QA-17", "High", "-", "FIXED",
+     "Asymmetric video mesh - the reported 3-2-1 failure",
+     "With three students on a call, one saw everyone, one saw two and one saw only themselves. The "
+     "old rule (whoever joins offers to everyone already in the call) announced inCall BEFORE "
+     "building the offer list, so two people joining together both offered. The second offer hit a "
+     "peer in have-local-offer, setRemoteDescription threw InvalidStateError, and with no try/catch "
+     "and no retry that pair stayed dead. Not a network fault - it reproduced on a single Wi-Fi.",
+     "UT-MESH-001..009",
+     "FIXED: a deterministic initiator (lower socket id offers) removes glare by construction; an "
+     "ensureMesh pass on join, on roster change and every 3s heals missing or failed links; and all "
+     "signalling is wrapped so one bad frame cannot wedge a connection."),
+    ("QA-18", "High", "-", "FIXED",
+     "Admin locked out of the site by a client-side domain check",
+     "A hardcoded @mmcoe.edu.in check on the login form blocked the seeded admin account - the only "
+     "one that can upload papers. The same check on forgot-password also removed its recovery path "
+     "and reintroduced an enumeration signal.",
+     "UAT (login)",
+     "FIXED: removed from login, forgot-password and resend-verification, which act on accounts that "
+     "already passed the server-side allowlist. Kept on signup, where the rule genuinely applies."),
+    ("QA-19", "Medium", "-", "FIXED",
+     "Stale cache showed unlocked papers after logout",
+     "React Query's 30s staleTime left a signed-out user seeing View and Download on locked papers; "
+     "clicking them returned 401 and hard-redirected to /login.",
+     "UAT (gating)",
+     "FIXED: the query cache is cleared on login and logout, since responses are auth-dependent."),
+    ("QA-08", "Medium", "-", "FIXED",
+     "Unknown routes rendered a completely blank page",
+     "App.tsx had no catch-all route, so React Router matched nothing and #root stayed empty - not "
+     "even the header. With Vercel's SPA rewrite serving index.html for every path, any typo or "
+     "stale link was a white screen.",
+     "UAT-014",
+     "FIXED: a NotFoundPage inside the layout route, so a lost visitor keeps the header and gets "
+     "links back to the catalogue and to study rooms."),
+    ("QA-13", "Low", "-", "FIXED",
+     "Signup placeholder advertised a domain the server rejects",
+     "The email field suggested you@youruniversity.edu.in while the only allowlisted domain was "
+     "mmcoe.edu.in, so following the hint failed.",
+     "UAT (signup)",
+     "FIXED: the placeholder now shows username@mmcoe.edu.in."),
+    ("QA-20", "High", "-", "FIXED",
+     "Vercel deployment blocked by a lockfile mismatch",
+     "pnpm-lock.yaml was committed carrying a socket.io-client entry while backend/package.json - "
+     "which declares it - was left uncommitted, so pnpm install --frozen-lockfile refused with "
+     "ERR_PNPM_OUTDATED_LOCKFILE and no deployment could complete.",
+     "Vercel build log",
+     "FIXED: package.json committed with the lockfile; the whole install, typecheck and build chain "
+     "was reproduced locally before and after."),
 ]
 
 GOOD = [
@@ -276,12 +299,17 @@ total_cases = len(jest) + len(api) + len(UAT)
 
 cover = [
     ["Application", "ScholarBase - university question-paper, notes & study-room platform"],
-    ["Stack under test", "NestJS 10 + Prisma 5 / PostgreSQL (Neon) / S3-compatible object storage / React 18 + Vite"],
-    ["Test cases executed", "%d (Unit %d, Integration %d, E2E+Security %d, UAT %d)" % (
-        total_cases, len(unit), len(integ), len(api), len(UAT))],
-    ["Automated result", "%d/%d Jest specs passed; %d passed / %d failed / %d warned in the API suite" % (
-        len(jest), len(jest), total_api_pass, total_api_fail, total_api_warn)],
-    ["Defects raised", "16 (0 Critical, 1 High, 9 Medium, 6 Low)"],
+    ["Stack under test", "NestJS 10 + Prisma 5 / PostgreSQL (Neon) / S3-compatible storage / React 18 + Vite"],
+    ["Modules covered", "Auth & email verification, paper gating, file storage, study rooms "
+                        "(presence, chat, WebRTC signalling), shared whiteboard, screen-share pointer"],
+    ["Test cases executed", "%d (Unit %d, Integration %d, E2E+Security %d, Realtime %d, UAT %d)" % (
+        len(jest) + len(api) + len(realtime) + len(UAT), len(unit), len(integ), len(api),
+        len(realtime), len(UAT))],
+    ["Automated result", "%d/%d Jest specs passed; %d/%d realtime checks passed; %d passed / %d failed in the API suite" % (
+        len(jest), len(jest),
+        sum(1 for r in realtime if r["status"] == "PASS"), len(realtime),
+        sum(1 for r in api if r["status"] == "PASS"), sum(1 for r in api if r["status"] == "FAIL"))],
+    ["Defects", "19 total - 13 open (1 High, 7 Medium, 5 Low), 6 fixed this cycle"],
     ["Report date", DATE],
 ]
 t = Table([[P("<b>%s</b>" % k, "cell"), P(esc(v), "cell")] for k, v in cover],
@@ -305,21 +333,29 @@ story.append(PageBreak())
 
 story.append(Paragraph("1. Executive summary", S["h1"]))
 story.append(Paragraph(
-    "ScholarBase's <b>authentication and authorisation core is genuinely solid</b>. Every privilege-escalation "
-    "and token-forgery attempt in this engagement failed: admin-only routes rejected student tokens, a JWT "
-    "forged with the real signing secret claiming <font face='Courier'>role=ADMIN</font> was still refused because "
-    "the role is re-read from the database, and mass-assignment of an admin role at signup was blocked by "
-    "validation whitelisting. Passwords are argon2-hashed and refresh/reset tokens are stored only as HMACs. "
-    "That is the hard part of the system, and it is right.", S["body"]))
+    "ScholarBase's <b>authentication core remains its strongest area</b>. Every privilege-escalation and "
+    "token-forgery attempt failed again this cycle: admin-only routes rejected student tokens, a JWT forged "
+    "with the real signing secret claiming <font face='Courier'>role=ADMIN</font> was still refused because the "
+    "role is re-read from the database, and mass-assignment of an admin role at signup was blocked by "
+    "validation whitelisting. Email verification now gates login, and the whole flow - signup issuing no "
+    "session, a 403 until confirmed, single-use tokens, graceful replay - was verified against real delivery "
+    "through Brevo.", S["body"]))
 story.append(Paragraph(
-    "The gaps are concentrated in the <b>protective layers around</b> that core rather than in the core itself: "
-    "there is no rate limiting anywhere, no security headers, CORS is open to every origin, and the "
-    "forgot-password endpoint leaks account existence through response timing despite deliberately returning a "
-    "uniform body. None of these require an authenticated attacker.", S["body"]))
+    "Two features were added and tested since the last report: a <b>shared whiteboard</b> and a "
+    "<b>screen-share laser pointer</b>, both server-relayed so they keep working for students whose peer "
+    "connection never establishes. All 21 realtime checks pass, including every authorization rule - drawing "
+    "without a grant is ignored, a non-owner cannot clear the board, and signalling aimed at a non-member "
+    "socket is refused.", S["body"]))
 story.append(Paragraph(
-    "<b>Release recommendation: fix QA-01 (login brute force) before opening the site to students.</b> With no "
-    "throttling, an eight-character minimum password and no complexity rule, account takeover by guessing is "
-    "practical. QA-02 through QA-08 should follow shortly after; the Low items can be scheduled normally.", S["body"]))
+    "<b>Six defects were fixed this cycle</b>, three of them High. The most serious was QA-17: students "
+    "reported a call where one person saw everyone, one saw two and one saw only themselves. It was never a "
+    "network problem - it was offer/answer glare with no arbitration, no error containment and no retry. "
+    "QA-18 had locked the administrator out of their own site, and QA-20 was blocking every deployment.", S["body"]))
+story.append(Paragraph(
+    "<b>The remaining priority is unchanged and now overdue: QA-01, rate limiting.</b> Nothing throttles "
+    "anywhere. With students actively using the site and email on the signup critical path, an unthrottled "
+    "resend-verification endpoint can exhaust the 300/day mail quota and lock out real signups, quite apart "
+    "from making password guessing practical.", S["body"]))
 
 story.append(Paragraph("1.1 Results by phase", S["h2"]))
 phase_rows = [[P("<b>Phase</b>", "cellb"), P("<b>Cases</b>", "cellb"), P("<b>Passed</b>", "cellb"),
@@ -331,6 +367,9 @@ for name, cases, passed, failed, focus in [
     ("Integration", len(integ), len(integ), 0, "Services against mocked Prisma: credential handling, reset-token lifecycle, upload rules"),
     ("API E2E", 18, 15, 3, "Black-box HTTP: auth lifecycle, catalogue reads, presigned URL issuance"),
     ("Security (OWASP)", 39, 27, 10, "API1-API10 probes against the running server"),
+    ("Realtime", len(realtime), sum(1 for r in realtime if r["status"] == "PASS"),
+     sum(1 for r in realtime if r["status"] != "PASS"),
+     "Two live socket clients: presence, chat, whiteboard, pointer, signalling relay"),
     ("UAT", len(UAT), uat_pass, uat_fail, "Browser-driven end-user journeys, responsive and theme checks"),
 ]:
     phase_rows.append([P(name), P(str(cases)), P(str(passed)), P(str(failed)), P(focus)])
@@ -372,16 +411,17 @@ story.append(Paragraph(
     "Every defect below was reproduced by an executed test. The 'Evidence' line names the test case that "
     "demonstrates it, so each can be re-verified after a fix.", S["body"]))
 
-for did, sev, owasp, title, detail, evidence, fix in DEFECTS:
+for did, sev, owasp, state, title, detail, evidence, fix in DEFECTS:
     hexcol = SEV_COLORS[sev].hexval().replace('0x', '#')
     head = Table([[
         P("<font color='white'><b>%s</b></font>" % did, "cell"),
         P("<font color='white'><b>%s</b></font>" % sev, "cell"),
         P("<font color='white'><b>%s</b></font>" % esc(title), "cell"),
         P("<font color='white'>%s</font>" % (("OWASP " + owasp) if owasp != "-" else "Functional"), "cell"),
-    ]], colWidths=[16 * mm, 18 * mm, W - 70 * mm, 36 * mm])
+        P("<font color='white'><b>%s</b></font>" % state, "cell"),
+    ]], colWidths=[16 * mm, 18 * mm, W - 92 * mm, 34 * mm, 24 * mm])
     head.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, -1), SEV_COLORS[sev]),
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#4b5563") if state == "FIXED" else SEV_COLORS[sev]),
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING", (0, 0), (-1, -1), 4),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
@@ -431,6 +471,22 @@ story.append(Paragraph(
 story.append(PageBreak())
 
 # --------------------------------------------------------------- appendices
+
+story.append(Paragraph("Realtime module results", S["h1"]))
+story.append(Paragraph(
+    "Driven by two authenticated socket clients against the running gateway. Every authorization rule is "
+    "asserted from the client that should be refused, not merely from the happy path.", S["muted"]))
+rows = [[P("<b>ID</b>", "cellb"), P("<b>Module</b>", "cellb"), P("<b>Check</b>", "cellb"), P("<b>Res.</b>", "cellb")]]
+for r in realtime:
+    col = STATUS_COLORS.get(r["status"], MUTED).hexval().replace("0x", "#")
+    rows.append([
+        P("<font face='Courier' size='6.6'>%s</font>" % esc(r["id"])),
+        P(esc(r["module"])),
+        P(esc(r["name"])),
+        P("<font color='%s'><b>%s</b></font>" % (col, r["status"])),
+    ])
+story.append(table(rows, [24 * mm, 26 * mm, W - 68 * mm, 18 * mm]))
+story.append(PageBreak())
 
 story.append(Paragraph("4. Test case inventory", S["h1"]))
 
