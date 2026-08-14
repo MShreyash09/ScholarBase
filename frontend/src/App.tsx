@@ -17,6 +17,8 @@ import { ForgotPasswordPage } from "@/routes/pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "@/routes/pages/ResetPasswordPage";
 import { VerifyEmailPage } from "@/routes/pages/VerifyEmailPage";
 import { AdminPage } from "@/routes/pages/AdminPage";
+import { InstructionsPage } from "@/routes/pages/InstructionsPage";
+import { ContributePage } from "@/routes/pages/ContributePage";
 import { NotFoundPage } from "@/routes/pages/NotFoundPage";
 import { StudyRoomsPage } from "@/routes/pages/StudyRoomsPage";
 import { StudyRoomPage } from "@/routes/pages/StudyRoomPage";
@@ -38,6 +40,8 @@ export default function App() {
               />
               <Route path="years/:yearNumber" element={<YearPage />} />
               <Route path="years/:yearNumber/:subjectId" element={<SubjectPage />} />
+              <Route path="instructions" element={<InstructionsPage />} />
+              <Route path="contribute" element={<ContributePage />} />
               <Route path="login" element={<LoginPage />} />
               <Route path="signup" element={<SignupPage />} />
               <Route path="forgot-password" element={<ForgotPasswordPage />} />

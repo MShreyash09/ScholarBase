@@ -142,7 +142,18 @@ export function AppLayout() {
         <Outlet />
       </main>
 
+      {/* Both pages live here rather than in the header nav: that row already
+          carries seven departments and wraps on a phone, and a ninth link would
+          push the sign-up button off the first line. */}
       <footer className="mt-8 border-t border-border bg-surface py-8 text-center text-sm text-foreground-muted">
+        <nav className="mb-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+          <Link to="/instructions" className="font-medium transition-colors hover:text-brand">
+            How it works
+          </Link>
+          <Link to="/contribute" className="font-medium transition-colors hover:text-brand">
+            Contribute papers
+          </Link>
+        </nav>
         <p>© {new Date().getFullYear()} ScholarBase. Built for students.</p>
       </footer>
     </div>
