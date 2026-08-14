@@ -2,10 +2,16 @@ import { useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Eye, Download, Lock } from "lucide-react";
-import type { FileViewUrlDto } from "@scholarbase/shared-types";
+import {
+  EXAM_TYPE_LABELS,
+  type FileViewUrlDto,
+  type QuestionPaperDto,
+} from "@scholarbase/shared-types";
 import { subjectsApi } from "@/lib/api/academic";
+import { examTypesApi } from "@/lib/api/exam-types";
 import { papersApi } from "@/lib/api/papers";
 import { notesApi } from "@/lib/api/notes";
+import { RE_ETE_DESCRIPTION } from "@/lib/exam-types";
 import { useAuth } from "@/hooks/useAuth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -66,6 +72,32 @@ export function SubjectPage() {
     enabled: Boolean(subjectId),
   });
 
+  const { data: examTypes } = useQuery({ queryKey: ["exam-types"], queryFn: examTypesApi.list });
+
+  // Papers used to be one flat grid, which made a RE-ETE paper indistinguishable
+  // from the end-term paper it re-examines — same subject, often the same year,
+  // and nothing on the card said which was which.
+  //
+  // Known types come first, in EXAM_TYPE_LABELS order, so the headings are
+  // stable. Anything left over is appended rather than dropped: an admin can
+  // create a new exam type from the admin page at any time, and grouping
+  // strictly by the known list would hide its papers entirely.
+  const paperSections = (() => {
+    const nameById = new Map((examTypes ?? []).map((t) => [t.id, t.name]));
+    const byName = new Map<string, QuestionPaperDto[]>();
+    for (const paper of papers ?? []) {
+      const name = nameById.get(paper.examTypeId) ?? "Other";
+      const bucket = byName.get(name);
+      if (bucket) bucket.push(paper);
+      else byName.set(name, [paper]);
+    }
+    const known = EXAM_TYPE_LABELS.filter((label) => byName.has(label));
+    const extra = [...byName.keys()].filter(
+      (name) => !(EXAM_TYPE_LABELS as readonly string[]).includes(name),
+    );
+    return [...known, ...extra].map((name) => ({ name, papers: byName.get(name) ?? [] }));
+  })();
+
   const downloadPaper = async (id: string) => {
     const { url } = await papersApi.getDownloadUrl(id);
     window.location.href = url;
@@ -91,75 +123,83 @@ export function SubjectPage() {
           {papers?.length === 0 && (
             <p className="text-foreground-muted">No question papers uploaded for this subject yet.</p>
           )}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {papers?.map((paper) => (
-              <Card key={paper.id} interactive className="group relative overflow-hidden">
-                <CardHeader>
-                  <CardTitle className="flex items-start justify-between gap-2 text-base">
-                    <span className="transition-colors group-hover:text-brand">{paper.fileName}</span>
-                    {/* Small persistent marker so a locked paper still reads as
-                        locked without hovering — the overlay below is the
-                        flourish, not the only signal. */}
-                    {paper.locked && (
-                      <Lock
-                        className="mt-0.5 h-4 w-4 shrink-0 text-foreground-subtle"
-                        aria-hidden="true"
-                      />
-                    )}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Badge>{paper.academicYear}</Badge>
-                    {/* The one paper a signed-out visitor may open, so the
-                        offer is visible rather than something they discover by
-                        clicking a locked one. */}
-                    {!isAuthenticated && !paper.locked && <Badge variant="success">Free preview</Badge>}
-                  </div>
-                  {!paper.locked && (
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" onClick={() => void openViewer("paper", paper.id)}>
-                        <Eye className="h-4 w-4" aria-hidden="true" />
-                        View
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => void downloadPaper(paper.id)}
-                        aria-label={`Download ${paper.fileName}`}
-                      >
-                        <Download className="h-4 w-4" aria-hidden="true" />
-                        Download
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
+          {paperSections.map((section) => (
+            <section key={section.name} className="mt-6 first:mt-4">
+              <h2 className="text-lg font-semibold text-foreground">{section.name} papers</h2>
+              {section.name === "RE-ETE" && (
+                <p className="mt-1 max-w-2xl text-sm text-foreground-muted">{RE_ETE_DESCRIPTION}</p>
+              )}
+              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {section.papers.map((paper) => (
+                  <Card key={paper.id} interactive className="group relative overflow-hidden">
+                    <CardHeader>
+                      <CardTitle className="flex items-start justify-between gap-2 text-base">
+                        <span className="transition-colors group-hover:text-brand">{paper.fileName}</span>
+                        {/* Small persistent marker so a locked paper still reads as
+                            locked without hovering — the overlay below is the
+                            flourish, not the only signal. */}
+                        {paper.locked && (
+                          <Lock
+                            className="mt-0.5 h-4 w-4 shrink-0 text-foreground-subtle"
+                            aria-hidden="true"
+                          />
+                        )}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge>{paper.academicYear}</Badge>
+                        {/* The one paper a signed-out visitor may open, so the
+                            offer is visible rather than something they discover by
+                            clicking a locked one. */}
+                        {!isAuthenticated && !paper.locked && <Badge variant="success">Free preview</Badge>}
+                      </div>
+                      {!paper.locked && (
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" onClick={() => void openViewer("paper", paper.id)}>
+                            <Eye className="h-4 w-4" aria-hidden="true" />
+                            View
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void downloadPaper(paper.id)}
+                            aria-label={`Download ${paper.fileName}`}
+                          >
+                            <Download className="h-4 w-4" aria-hidden="true" />
+                            Download
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
 
-                {/* Hover reveal for locked papers.
-                    Covers the whole card so a tap anywhere works on phones,
-                    where there is no hover at all — without that, a touch user
-                    would have no way to reach the login prompt. It is a real
-                    <Link>, so it is keyboard reachable and the overlay is
-                    revealed on focus as well as hover. */}
-                {paper.locked && (
-                  <Link
-                    to="/login"
-                    state={{ from: location }}
-                    aria-label={`Log in to view ${paper.fileName}`}
-                    className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-surface/90 opacity-0 backdrop-blur-[2px] transition-opacity duration-200 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand group-hover:opacity-100"
-                  >
-                    <Lock className="h-5 w-5 text-brand" aria-hidden="true" />
-                    <span className="text-sm font-semibold text-foreground">
-                      Log in to view all papers
-                    </span>
-                    <span className="text-xs text-foreground-muted">
-                      One paper per semester is free
-                    </span>
-                  </Link>
-                )}
-              </Card>
-            ))}
-          </div>
+                    {/* Hover reveal for locked papers.
+                        Covers the whole card so a tap anywhere works on phones,
+                        where there is no hover at all — without that, a touch user
+                        would have no way to reach the login prompt. It is a real
+                        <Link>, so it is keyboard reachable and the overlay is
+                        revealed on focus as well as hover. */}
+                    {paper.locked && (
+                      <Link
+                        to="/login"
+                        state={{ from: location }}
+                        aria-label={`Log in to view ${paper.fileName}`}
+                        className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-2xl bg-surface/90 opacity-0 backdrop-blur-[2px] transition-opacity duration-200 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-brand group-hover:opacity-100"
+                      >
+                        <Lock className="h-5 w-5 text-brand" aria-hidden="true" />
+                        <span className="text-sm font-semibold text-foreground">
+                          Log in to view all papers
+                        </span>
+                        <span className="text-xs text-foreground-muted">
+                          One paper per semester is free
+                        </span>
+                      </Link>
+                    )}
+                  </Card>
+                ))}
+              </div>
+            </section>
+          ))}
         </TabsContent>
 
         <TabsContent value="notes">

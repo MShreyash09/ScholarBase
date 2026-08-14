@@ -21,7 +21,7 @@ const YEAR_LEVELS = [
   { yearNumber: 4, label: "4th Year" },
 ];
 
-const EXAM_TYPES = ["Unit Test", "End Term"];
+const EXAM_TYPES = ["Unit Test", "End Term", "RE-ETE"];
 
 const DEPARTMENT = "IT";
 

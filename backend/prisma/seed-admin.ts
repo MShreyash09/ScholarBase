@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaClient, UserRole } from "@prisma/client";
 import * as argon2 from "argon2";
+import { EXAM_TYPE_LABELS } from "@scholarbase/shared-types";
 
 const prisma = new PrismaClient();
 
@@ -16,7 +17,11 @@ const YEAR_LEVELS = [
   { yearNumber: 4, label: "4th Year" },
 ];
 
-const EXAM_TYPES = ["Unit Test", "End Term"];
+// Shared with the UI so every exam type the pages render a section for exists
+// as a row. A type listed on only one side is silently invisible: named here
+// but absent from the database and the section renders empty, present in the
+// database but absent there and its papers are never shown.
+const EXAM_TYPES: readonly string[] = EXAM_TYPE_LABELS;
 
 async function main() {
   const email = process.env.ADMIN_EMAIL?.toLowerCase().trim();

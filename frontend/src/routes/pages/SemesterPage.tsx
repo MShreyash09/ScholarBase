@@ -1,15 +1,19 @@
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Lock } from "lucide-react";
-import { DEPARTMENTS, type QuestionPaperDto, type SubjectDto } from "@scholarbase/shared-types";
+import {
+  DEPARTMENTS,
+  EXAM_TYPE_LABELS,
+  type QuestionPaperDto,
+  type SubjectDto,
+} from "@scholarbase/shared-types";
 import { subjectsApi } from "@/lib/api/academic";
 import { examTypesApi } from "@/lib/api/exam-types";
 import { papersApi } from "@/lib/api/papers";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { RE_ETE_DESCRIPTION } from "@/lib/exam-types";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-const EXAM_TYPE_LABELS = ["Unit Test", "End Term"];
 
 function PaperRow({
   subject,
@@ -137,6 +141,9 @@ export function SemesterPage() {
               <Card key={label}>
                 <CardHeader>
                   <CardTitle>{label} papers</CardTitle>
+                  {/* Only RE-ETE gets a subtitle: "Unit Test" and "End Term"
+                      explain themselves, the abbreviation does not. */}
+                  {label === "RE-ETE" && <CardDescription>{RE_ETE_DESCRIPTION}</CardDescription>}
                 </CardHeader>
                 <CardContent>
                   {subjects.map((subject) => {
