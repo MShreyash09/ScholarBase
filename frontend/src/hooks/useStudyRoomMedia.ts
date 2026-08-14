@@ -162,7 +162,24 @@ interface PeerRecord {
   pc: RTCPeerConnection;
   audioSender: RTCRtpSender;
   videoSender: RTCRtpSender;
+  /**
+   * When we last sent an offer to this peer, so a negotiation that never gets
+   * answered can be spotted and retried. Without this a single dropped offer
+   * leaves the pair permanently unconnected while both sides believe a
+   * connection is in progress.
+   */
+  offerSentAt?: number;
 }
+
+/**
+ * How long to wait for an answer before assuming the offer was lost and
+ * starting again. Generous: the far side may still be at the microphone
+ * permission prompt, which is a human-speed delay.
+ */
+const OFFER_TIMEOUT_MS = 10_000;
+
+/** How often the mesh is reconciled against the participant list. */
+const MESH_RECONCILE_MS = 3000;
 
 export interface UseStudyRoomMediaResult {
   inCall: boolean;
@@ -342,59 +359,183 @@ export function useStudyRoomMedia(
     }
   }, []);
 
+  /**
+   * Which side of a pair creates the offer, decided from the two socket ids.
+   *
+   * The old rule was "whoever joins the call offers to everyone already in it",
+   * which breaks when two people join at nearly the same moment: each emits
+   * `inCall: true` *before* building its offer list, so both can see the other
+   * as already in the call and both send an offer. The second offer then
+   * arrives while the receiver is in `have-local-offer`, `setRemoteDescription`
+   * throws InvalidStateError, and that pair is dead for the rest of the session.
+   *
+   * Comparing ids removes the race by construction: both sides evaluate the
+   * same comparison and reach opposite answers, so exactly one ever offers, no
+   * matter who clicked first.
+   */
+  const shouldInitiateTo = useCallback(
+    (peerSocketId: string) => {
+      const selfId = socketRef.current?.id;
+      if (!selfId) return false;
+      return selfId < peerSocketId;
+    },
+    [socketRef],
+  );
+
+  const offerTo = useCallback(
+    async (peerSocketId: string) => {
+      if (!roomId) return;
+      const record = createPeer(peerSocketId);
+      const { pc } = record;
+
+      // Never interrupt a negotiation that is already under way.
+      if (pc.signalingState !== "stable") return;
+
+      try {
+        const offer = await pc.createOffer();
+        // createOffer awaited; make sure nothing negotiated underneath us.
+        if (pc.signalingState !== "stable") return;
+        await pc.setLocalDescription(offer);
+        record.offerSentAt = Date.now();
+        socketRef.current?.emit(StudyRoomClientEvent.SIGNAL, {
+          roomId,
+          targetSocketId: peerSocketId,
+          kind: "offer",
+          data: offer,
+        });
+      } catch {
+        // A failed setup is better rebuilt from scratch than left half-open;
+        // the next reconcile pass will recreate it.
+        dropPeer(peerSocketId);
+      }
+    },
+    [createPeer, dropPeer, roomId, socketRef],
+  );
+
+  /**
+   * Brings the mesh back in line with who is actually on the call.
+   *
+   * This is the safety net the old code lacked entirely: it assumed every peer
+   * connection would be established by the joiner's one-shot offer loop and
+   * that nothing could go wrong, so a single dropped or rejected offer meant
+   * that pair simply never connected — with nothing to notice or retry. Running
+   * this on join, on every participant change, and on a timer means a missing
+   * link heals itself within a few seconds instead of lasting the whole session.
+   */
+  const ensureMesh = useCallback(() => {
+    if (!inCallRef.current || !roomId) return;
+    const selfId = socketRef.current?.id;
+    if (!selfId) return;
+
+    const onCall = new Set(
+      participantsRef.current.filter((p) => p.inCall).map((p) => p.socketId),
+    );
+
+    // Tear down connections to anyone who has since left the call.
+    for (const socketId of [...peersRef.current.keys()]) {
+      if (!onCall.has(socketId)) dropPeer(socketId);
+    }
+
+    for (const peerSocketId of onCall) {
+      if (peerSocketId === selfId) continue;
+
+      const record = peersRef.current.get(peerSocketId);
+      if (record) {
+        const state = record.pc.connectionState;
+        const stalled =
+          record.pc.signalingState === "have-local-offer" &&
+          record.offerSentAt !== undefined &&
+          Date.now() - record.offerSentAt > OFFER_TIMEOUT_MS;
+
+        // A failed connection, or an offer nobody ever answered, is rebuilt.
+        if (state === "failed" || state === "closed" || stalled) {
+          dropPeer(peerSocketId);
+        } else {
+          continue;
+        }
+      }
+
+      // Only the designated side offers; the other waits for it. Its own
+      // reconcile pass is what guarantees the offer eventually arrives.
+      if (shouldInitiateTo(peerSocketId)) void offerTo(peerSocketId);
+    }
+  }, [dropPeer, offerTo, roomId, shouldInitiateTo, socketRef]);
+
   // --- signalling ---------------------------------------------------------
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket || !roomId) return;
 
+    // Every branch is wrapped: an exception here used to reject the handler
+    // silently and leave the connection half-negotiated with nothing to notice
+    // or retry, which is how a single bad frame cost a pair the whole session.
     const handleSignal = async (payload: SignalBroadcastPayload) => {
       const from = payload.fromSocketId;
 
-      if (payload.kind === "offer") {
-        // Someone joining the call offers to everyone already in it. Ignore it
-        // unless we are actually in the call and have a stream to answer with.
-        if (!inCallRef.current) return;
+      try {
+        if (payload.kind === "offer") {
+          // Ignore offers until we are actually on the call and have a stream
+          // to answer with. The sender's reconcile pass will re-offer, so a
+          // dropped offer here is recoverable rather than terminal.
+          if (!inCallRef.current) return;
 
-        const { pc } = createPeer(from);
-        await pc.setRemoteDescription(
-          new RTCSessionDescription(payload.data as RTCSessionDescriptionInit),
-        );
-        await flushPendingCandidates(from, pc);
+          const pending = peersRef.current.get(from);
+          if (pending && pending.pc.signalingState === "have-local-offer") {
+            // Both sides offered — impossible under the id rule, but if it ever
+            // happens, rebuilding from their offer is cheaper than trying to
+            // reconcile two half-negotiations.
+            dropPeer(from);
+          }
 
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        socket.emit(StudyRoomClientEvent.SIGNAL, {
-          roomId,
-          targetSocketId: from,
-          kind: "answer",
-          data: answer,
-        });
-        // Ceilings only stick once the sender has been negotiated.
-        applyAllSenderParams();
-        return;
-      }
+          const { pc } = createPeer(from);
+          await pc.setRemoteDescription(
+            new RTCSessionDescription(payload.data as RTCSessionDescriptionInit),
+          );
+          await flushPendingCandidates(from, pc);
 
-      const record = peersRef.current.get(from);
-      if (!record) return;
-
-      if (payload.kind === "answer") {
-        await record.pc.setRemoteDescription(
-          new RTCSessionDescription(payload.data as RTCSessionDescriptionInit),
-        );
-        await flushPendingCandidates(from, record.pc);
-        applyAllSenderParams();
-        return;
-      }
-
-      if (payload.kind === "ice-candidate") {
-        const candidate = payload.data as RTCIceCandidateInit;
-        if (record.pc.remoteDescription) {
-          await record.pc.addIceCandidate(candidate).catch(() => undefined);
-        } else {
-          const queued = pendingCandidatesRef.current.get(from) ?? [];
-          queued.push(candidate);
-          pendingCandidatesRef.current.set(from, queued);
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit(StudyRoomClientEvent.SIGNAL, {
+            roomId,
+            targetSocketId: from,
+            kind: "answer",
+            data: answer,
+          });
+          // Ceilings only stick once the sender has been negotiated.
+          applyAllSenderParams();
+          return;
         }
+
+        const record = peersRef.current.get(from);
+        if (!record) return;
+
+        if (payload.kind === "answer") {
+          // An answer is only valid against an outstanding local offer; out of
+          // order it would throw and kill the connection.
+          if (record.pc.signalingState !== "have-local-offer") return;
+
+          await record.pc.setRemoteDescription(
+            new RTCSessionDescription(payload.data as RTCSessionDescriptionInit),
+          );
+          record.offerSentAt = undefined;
+          await flushPendingCandidates(from, record.pc);
+          applyAllSenderParams();
+          return;
+        }
+
+        if (payload.kind === "ice-candidate") {
+          const candidate = payload.data as RTCIceCandidateInit;
+          if (record.pc.remoteDescription) {
+            await record.pc.addIceCandidate(candidate).catch(() => undefined);
+          } else {
+            const queued = pendingCandidatesRef.current.get(from) ?? [];
+            queued.push(candidate);
+            pendingCandidatesRef.current.set(from, queued);
+          }
+        }
+      } catch {
+        // Drop it and let the next reconcile pass rebuild from scratch.
+        dropPeer(from);
       }
     };
 
@@ -406,8 +547,9 @@ export function useStudyRoomMedia(
         if (!payload.screenEnabled) stopScreenShareRef.current(false);
         return;
       }
-      // A peer leaving the call tears its connection down; a peer joining the
-      // call will send us an offer, so there is nothing to do on that edge.
+      // Tear down promptly when a peer leaves the call. The joining edge is
+      // handled by reconciliation rather than here — assuming the newcomer
+      // would always offer first is precisely what left pairs unconnected.
       if (!payload.inCall) dropPeer(payload.socketId);
     };
 
@@ -472,26 +614,32 @@ export function useStudyRoomMedia(
       screenEnabled: false,
     });
 
-    // Glare-free rule: whoever joins the call initiates to everyone already in
-    // it, so exactly one side of each pair creates the offer. Run them in
-    // parallel — serialised, the last peer waited on every earlier round-trip.
-    const targets = participantsRef.current.filter((p) => p.inCall);
-    await Promise.all(
-      targets.map(async (peer) => {
-        const { pc } = createPeer(peer.socketId);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socketRef.current?.emit(StudyRoomClientEvent.SIGNAL, {
-          roomId,
-          targetSocketId: peer.socketId,
-          kind: "offer",
-          data: offer,
-        });
-      }),
-    );
+    // Connections are established by reconciliation rather than a one-shot loop
+    // here. We offer only to the peers we are the designated initiator for; the
+    // rest will offer to us once our `inCall` reaches them, and the periodic
+    // pass repairs anything that goes missing in between.
+    ensureMesh();
 
     applyAllSenderParams();
-  }, [applyAllSenderParams, createPeer, emitMediaState, isStarting, roomId, socketRef]);
+  }, [applyAllSenderParams, emitMediaState, ensureMesh, isStarting, roomId]);
+
+  // Reconcile whenever the roster changes: somebody joining or leaving the call
+  // is exactly when a link needs creating or tearing down. This is what the old
+  // media-state handler deliberately skipped, on the assumption the other side
+  // would always offer first.
+  useEffect(() => {
+    if (!inCall) return;
+    ensureMesh();
+  }, [participants, inCall, ensureMesh]);
+
+  // Backstop for anything the event-driven passes miss — a lost offer, a peer
+  // still at the mic prompt when we first tried, an ICE failure. Cheap: it only
+  // touches connections that are actually absent or broken.
+  useEffect(() => {
+    if (!inCall) return;
+    const timer = window.setInterval(ensureMesh, MESH_RECONCILE_MS);
+    return () => window.clearInterval(timer);
+  }, [inCall, ensureMesh]);
 
   const leaveCall = useCallback(() => {
     if (!inCallRef.current) return;
