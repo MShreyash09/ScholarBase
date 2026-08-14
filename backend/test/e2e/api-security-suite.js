@@ -324,28 +324,60 @@ async function e2eCatalog() {
   });
 
   const papers = await req("GET", "/papers");
-  const firstPaper = Array.isArray(papers.json) ? papers.json[0] : null;
+  const paperList = Array.isArray(papers.json) ? papers.json : [];
+  // Signed-out visitors get one free paper per semester; the rest are locked.
+  const freePaper = paperList.find((p) => p.locked === false) ?? null;
+  const lockedPaper = paperList.find((p) => p.locked === true) ?? null;
+  const firstPaper = freePaper ?? paperList[0] ?? null;
+
   record({
     id: "E2E-012",
     phase: "E2E",
     owasp: "-",
-    name: "Question paper list is publicly readable",
-    expected: "200 with array",
-    actual: `${papers.status}, n=${Array.isArray(papers.json) ? papers.json.length : "n/a"}`,
-    status: papers.status === 200 ? "PASS" : "FAIL",
+    name: "Question paper list is publicly readable, with per-paper lock state",
+    expected: "200, array, every item carries `locked`",
+    actual: `${papers.status}, n=${paperList.length}, free=${paperList.filter((p) => !p.locked).length}, locked=${paperList.filter((p) => p.locked).length}`,
+    status:
+      papers.status === 200 && paperList.every((p) => typeof p.locked === "boolean")
+        ? "PASS"
+        : "FAIL",
   });
+
+  // The gate itself. Checked before anything storage-dependent, because it must
+  // hold whether or not object storage is reachable.
+  if (lockedPaper) {
+    const lockedView = await req("GET", `/papers/${lockedPaper.id}/view`);
+    const lockedDl = await req("GET", `/papers/${lockedPaper.id}/download`);
+    const blocked = lockedView.status === 401 && lockedDl.status === 401;
+    record({
+      id: "E2E-012a",
+      phase: "E2E",
+      owasp: "API1",
+      name: "SECURITY — anonymous view/download of a LOCKED paper is refused",
+      expected: "401 on both",
+      actual: `view=${lockedView.status}, download=${lockedDl.status}`,
+      status: blocked ? "PASS" : "FAIL",
+      severity: blocked ? "-" : "High",
+    });
+  }
 
   if (firstPaper) {
     const view = await req("GET", `/papers/${firstPaper.id}/view`);
     const dto = view.json || {};
+    // A free paper must get past the gate. A 500 here means object storage is
+    // offline, which is an environment problem, not an authorization one — the
+    // request still cleared the gate.
+    const pastGate = view.status !== 401 && view.status !== 403;
     record({
       id: "E2E-013",
       phase: "E2E",
       owasp: "-",
-      name: "Paper view URL is issued to anonymous users (papers are public by design)",
-      expected: "200 with url/fileName/mimeType",
+      name: "Anonymous user may open the free paper for the semester",
+      expected: "not 401/403 (200 when storage is up)",
       actual: `${view.status}, keys=${Object.keys(dto).join(",")}`,
-      status: view.status === 200 && dto.url && dto.mimeType ? "PASS" : "FAIL",
+      status: view.status === 200 && dto.url && dto.mimeType ? "PASS" : pastGate ? "WARN" : "FAIL",
+      severity: pastGate ? "-" : "High",
+      evidence: pastGate && view.status !== 200 ? "cleared the gate; object storage unreachable" : "",
     });
 
     record({
@@ -360,14 +392,17 @@ async function e2eCatalog() {
     });
 
     const dl = await req("GET", `/papers/${firstPaper.id}/download`);
+    const dlPastGate = dl.status !== 401 && dl.status !== 403;
     record({
       id: "E2E-015",
       phase: "E2E",
       owasp: "-",
-      name: "Paper download URL is issued",
-      expected: "200 with url",
+      name: "Anonymous user may download the free paper for the semester",
+      expected: "not 401/403 (200 when storage is up)",
       actual: `${dl.status}`,
-      status: dl.status === 200 && dl.json?.url ? "PASS" : "FAIL",
+      status: dl.status === 200 && dl.json?.url ? "PASS" : dlPastGate ? "WARN" : "FAIL",
+      severity: dlPastGate ? "-" : "High",
+      evidence: dlPastGate && dl.status !== 200 ? "cleared the gate; object storage unreachable" : "",
     });
 
     // Presigned URL should actually resolve at the storage provider.
