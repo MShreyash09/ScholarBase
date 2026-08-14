@@ -17,6 +17,7 @@ import { ForgotPasswordPage } from "@/routes/pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "@/routes/pages/ResetPasswordPage";
 import { VerifyEmailPage } from "@/routes/pages/VerifyEmailPage";
 import { AdminPage } from "@/routes/pages/AdminPage";
+import { NotFoundPage } from "@/routes/pages/NotFoundPage";
 import { StudyRoomsPage } from "@/routes/pages/StudyRoomsPage";
 import { StudyRoomPage } from "@/routes/pages/StudyRoomPage";
 import { JoinStudyRoomPage } from "@/routes/pages/JoinStudyRoomPage";
@@ -51,6 +52,9 @@ export default function App() {
               <Route element={<ProtectedRoute adminOnly />}>
                 <Route path="admin" element={<AdminPage />} />
               </Route>
+              {/* Last, and inside the layout so a lost visitor still gets the
+                  header and a way back. Without it nothing rendered at all. */}
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
         </AuthProvider>
