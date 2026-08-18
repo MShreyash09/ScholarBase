@@ -13,6 +13,7 @@ import { YearPage } from "@/routes/pages/YearPage";
 import { SubjectPage } from "@/routes/pages/SubjectPage";
 import { LoginPage } from "@/routes/pages/LoginPage";
 import { SignupPage } from "@/routes/pages/SignupPage";
+import { GoogleCallbackPage } from "@/routes/pages/GoogleCallbackPage";
 import { ForgotPasswordPage } from "@/routes/pages/ForgotPasswordPage";
 import { ResetPasswordPage } from "@/routes/pages/ResetPasswordPage";
 import { VerifyEmailPage } from "@/routes/pages/VerifyEmailPage";
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="contribute" element={<ContributePage />} />
               <Route path="login" element={<LoginPage />} />
               <Route path="signup" element={<SignupPage />} />
+              <Route path="auth/google/callback" element={<GoogleCallbackPage />} />
               <Route path="forgot-password" element={<ForgotPasswordPage />} />
               <Route path="reset-password" element={<ResetPasswordPage />} />
               <Route path="verify-email" element={<VerifyEmailPage />} />

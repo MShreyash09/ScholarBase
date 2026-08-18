@@ -20,7 +20,7 @@ export function HomePage() {
     <div className="flex flex-col items-center">
       {/* Hero Section */}
       <section className="mb-16 mt-8 flex flex-col items-center text-center">
-        <div className="mb-4 inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary-700 dark:text-primary-400">
+        <div className="mb-4 inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-brand">
           Welcome to your new academic hub
         </div>
         <h1 className="mb-4 bg-gradient-to-r from-primary-700 to-primary-400 bg-clip-text text-5xl font-extrabold tracking-tight text-transparent sm:text-6xl dark:from-primary-400 dark:to-primary-200">
@@ -41,10 +41,10 @@ export function HomePage() {
               <Link key={dept.code} to={`/departments/${dept.code}`}>
                 <Card interactive className="group h-full text-center">
                   <CardHeader className="items-center">
-                    <div className="mb-3 rounded-full bg-primary/10 p-3 text-primary transition-transform group-hover:scale-110 group-hover:bg-primary/20 dark:text-primary-200">
+                    <div className="mb-3 rounded-full bg-primary/10 p-3 text-brand transition-transform group-hover:scale-110 group-hover:bg-primary/20">
                       <Icon className="h-6 w-6" aria-hidden="true" />
                     </div>
-                    <CardTitle className="transition-colors group-hover:text-primary dark:group-hover:text-primary-200">
+                    <CardTitle className="transition-colors group-hover:text-brand">
                       {dept.label}
                     </CardTitle>
                     <CardDescription>Department</CardDescription>

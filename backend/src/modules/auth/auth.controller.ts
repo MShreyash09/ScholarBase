@@ -1,4 +1,7 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards, Req, Res } from "@nestjs/common";
+import { AuthGuard } from "@nestjs/passport";
+import { ConfigService } from "@nestjs/config";
+import { Request, Response } from "express";
 import {
   AuthResponseDto,
   ForgotPasswordResponseDto,
@@ -21,7 +24,10 @@ import { ResendVerificationDto } from "./dto/resend-verification.dto";
 
 @Controller("auth")
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: ConfigService,
+  ) {}
 
   // Returns a message, not a session: the account cannot be used until the
   // emailed confirmation link is opened.
@@ -84,6 +90,21 @@ export class AuthController {
     return {
       message: "If that email needs confirming, a new link is on its way.",
     };
+  }
+
+  @Public()
+  @Get("google")
+  @UseGuards(AuthGuard("google"))
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async googleAuth(@Req() req: Request) {}
+
+  @Public()
+  @Get("google/callback")
+  @UseGuards(AuthGuard("google"))
+  async googleAuthRedirect(@Req() req: Request, @Res() res: Response) {
+    const tokens = await this.authService.googleLogin(req.user as { email: string; fullName: string });
+    const appUrl = this.config.get<string>("APP_BASE_URL", "http://localhost:5173").replace(/\/$/, "");
+    res.redirect(`${appUrl}/auth/google/callback?accessToken=${tokens.accessToken}&refreshToken=${tokens.refreshToken}`);
   }
 
   @HttpCode(HttpStatus.NO_CONTENT)

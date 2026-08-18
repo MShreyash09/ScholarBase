@@ -14,6 +14,7 @@ import { StudyRoomsModule } from "./modules/study-rooms/study-rooms.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
 import { AiModule } from './modules/ai/ai.module';
+import { RagModule } from "./modules/rag/rag.module";
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { AiModule } from './modules/ai/ai.module';
     NotesModule,
     StudyRoomsModule,
     AiModule,
+    RagModule,
   ],
   controllers: [AppController],
   providers: [

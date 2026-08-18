@@ -106,7 +106,7 @@ export function ScholarBoyWidget() {
                   <ArrowLeft className="h-4 w-4" />
                 </Button>
               )}
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary/20 text-primary transition-all duration-300">
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-primary/20 text-brand transition-all duration-300">
                 {/* Fallback to Lucide icon if image fails, but use standard avatar */}
                 <img 
                   src={isLoading ? "/avatar/avatar1_hands_on_chin.png" : "/avatar/avatar1.png"} 
@@ -119,7 +119,7 @@ export function ScholarBoyWidget() {
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold text-foreground">ScholarBoy</h3>
-                  <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">Beta</span>
+                  <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand">Beta</span>
                 </div>
                 <p className="text-xs text-foreground-muted">
                   {isLoading ? 'Thinking...' : mode === 'nav' ? 'Navigation Menu' : 'AI Doubt Solver'}
@@ -179,7 +179,7 @@ export function ScholarBoyWidget() {
                         <div className="max-w-[85%] rounded-2xl rounded-tl-sm px-4 py-3 text-sm bg-secondary text-secondary-foreground border border-border/50 shadow-sm">
                           <ChainOfThought>
                             <ChainOfThoughtStep>
-                              <ChainOfThoughtTrigger leftIcon={<Loader2 className="h-4 w-4 animate-spin text-primary" />}>
+                              <ChainOfThoughtTrigger leftIcon={<Loader2 className="h-4 w-4 animate-spin text-brand" />}>
                                 ScholarBoy is thinking...
                               </ChainOfThoughtTrigger>
                               <ChainOfThoughtContent>

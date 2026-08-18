@@ -10,6 +10,7 @@ export default {
       colors: {
         primary: {
           DEFAULT: "#850013",
+          foreground: "#ffffff",
           50: "#fdf2f3",
           100: "#fbe3e5",
           200: "#f5c0c6",

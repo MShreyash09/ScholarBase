@@ -2,6 +2,7 @@ import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { AiMessageRole } from '@prisma/client';
+import { RagService } from '../rag/rag.service';
 
 @Injectable()
 export class AiService {
@@ -24,6 +25,7 @@ Be encouraging, concise, and stay strictly within the context of the student's q
   constructor(
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
+    private readonly ragService: RagService,
   ) {}
 
   async askQuestion(userId: string, question: string, sessionId?: string) {
@@ -69,9 +71,14 @@ Be encouraging, concise, and stay strictly within the context of the student's q
     history.reverse();
 
     let ragContext = '';
+    try {
+      ragContext = await this.ragService.retrieveContext(question);
+    } catch (err) {
+      this.logger.error("Failed to retrieve RAG context", err);
+    }
     
     const messages = [
-      { role: 'system', content: this.systemPrompt + (ragContext ? `\n\nContext:\n${ragContext}` : '') },
+      { role: 'system', content: this.systemPrompt + (ragContext ? `\n\nHere are some excerpts from our question papers that might help you answer:\n${ragContext}` : '') },
       ...history.map((msg) => ({ role: msg.role === AiMessageRole.assistant ? 'assistant' : 'user', content: msg.content })),
     ];
 

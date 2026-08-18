@@ -79,7 +79,7 @@ export function CallPanel({
                     ? "Someone else is sharing their screen"
                     : undefined
                 }
-                className={screenEnabled ? "bg-primary/15 text-primary-700 hover:bg-primary/25 dark:text-primary-200" : ""}
+                className={screenEnabled ? "bg-primary/15 text-brand hover:bg-primary/25" : ""}
               >
                 {screenEnabled ? "Stop sharing" : "Share screen"}
               </Button>

@@ -77,7 +77,7 @@ export function AppLayout() {
               <Link
                 key={dept.code}
                 to={`/departments/${dept.code}`}
-                className="rounded-pill px-4 py-1.5 text-sm font-medium text-foreground-muted transition-colors hover:bg-primary/10 hover:text-primary-700 dark:hover:text-primary-400"
+                className="rounded-pill px-4 py-1.5 text-sm font-medium text-foreground-muted transition-colors hover:bg-primary/10 hover:text-brand"
               >
                 {dept.label}
               </Link>
@@ -85,7 +85,7 @@ export function AppLayout() {
             {user && (
               <Link
                 to="/study-rooms"
-                className="rounded-pill px-4 py-1.5 text-sm font-medium text-foreground-muted transition-colors hover:bg-primary/10 hover:text-primary-700 dark:hover:text-primary-400"
+                className="rounded-pill px-4 py-1.5 text-sm font-medium text-foreground-muted transition-colors hover:bg-primary/10 hover:text-brand"
               >
                 Study Rooms
               </Link>
@@ -93,7 +93,7 @@ export function AppLayout() {
             {isAdmin && (
               <Link
                 to="/admin"
-                className="rounded-pill px-4 py-1.5 text-sm font-medium text-foreground-muted transition-colors hover:bg-primary/10 hover:text-primary-700 dark:hover:text-primary-400"
+                className="rounded-pill px-4 py-1.5 text-sm font-medium text-foreground-muted transition-colors hover:bg-primary/10 hover:text-brand"
               >
                 Admin
               </Link>

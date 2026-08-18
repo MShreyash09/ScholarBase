@@ -1,4 +1,4 @@
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, useCallback, type ReactNode } from "react";
 import {
   UserRole,
   type LoginRequestDto,
@@ -21,6 +21,7 @@ interface AuthContextValue {
    * opened — so there is nothing to store here.
    */
   signup: (body: SignupRequestDto) => Promise<SignupResponseDto>;
+  setSessionFromOAuth: (accessToken: string, refreshToken: string, user: UserDto) => void;
   logout: () => Promise<void>;
 }
 
@@ -29,34 +30,32 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserDto | null>(() => authStorage.getUser());
 
-  const login = async (body: LoginRequestDto) => {
+  const login = useCallback(async (body: LoginRequestDto) => {
     const res = await authApi.login(body);
     authStorage.setSession(res.accessToken, res.refreshToken, res.user);
     setUser(res.user);
-    // Server responses are auth-dependent — question papers come back with a
-    // `locked` flag that differs for visitors and students — and the client
-    // caches them for 30s. Without this, a student who just logged in keeps
-    // seeing the locked view they were served moments earlier.
     queryClient.clear();
-  };
+  }, []);
 
-  const signup = async (body: SignupRequestDto) => {
-    // No setSession/setUser: signup issues no tokens now.
+  const signup = useCallback(async (body: SignupRequestDto) => {
     return authApi.signup(body);
-  };
+  }, []);
 
-  const logout = async () => {
+  const setSessionFromOAuth = useCallback((accessToken: string, refreshToken: string, userDto: UserDto) => {
+    authStorage.setSession(accessToken, refreshToken, userDto);
+    setUser(userDto);
+    queryClient.clear();
+  }, []);
+
+  const logout = useCallback(async () => {
     const refreshToken = authStorage.getRefreshToken();
     authStorage.clear();
     setUser(null);
-    // Drop every cached response too, or the signed-out user keeps being shown
-    // unlocked papers (and any other data fetched while authenticated) until
-    // the cache goes stale.
     queryClient.clear();
     if (refreshToken) {
       await authApi.logout(refreshToken).catch(() => undefined);
     }
-  };
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -65,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin: user?.role === UserRole.ADMIN,
       login,
       signup,
+      setSessionFromOAuth,
       logout,
     }),
     [user],

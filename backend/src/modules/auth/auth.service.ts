@@ -106,6 +106,43 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
+  async googleLogin(profile: { email: string; fullName: string }): Promise<AuthResponseDto> {
+    const email = profile.email.toLowerCase().trim();
+    const domain = email.split("@")[1];
+
+    const allowed = await this.prisma.allowedEmailDomain.findFirst({
+      where: { domain: { equals: domain, mode: "insensitive" } },
+    });
+    if (!allowed) {
+      throw new BadRequestException(
+        `Login with Google is only allowed for recognized university email domains`,
+      );
+    }
+
+    let user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      const randomPass = randomBytes(32).toString("hex");
+      const passwordHash = await argon2.hash(randomPass);
+
+      user = await this.prisma.user.create({
+        data: {
+          email,
+          passwordHash,
+          fullName: profile.fullName,
+          role: PrismaUserRole.student,
+          emailVerifiedAt: new Date(),
+        },
+      });
+    } else if (!user.emailVerifiedAt) {
+      user = await this.prisma.user.update({
+        where: { id: user.id },
+        data: { emailVerifiedAt: new Date() },
+      });
+    }
+
+    return this.issueTokens(user);
+  }
+
   async refresh(refreshToken: string): Promise<AuthResponseDto> {
     const tokenHash = this.hashRefreshToken(refreshToken);
     const stored = await this.prisma.refreshToken.findFirst({
