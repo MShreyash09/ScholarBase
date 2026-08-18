@@ -117,7 +117,10 @@ export function ScholarBoyWidget() {
                 <Bot className="absolute -z-10 h-6 w-6" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">ScholarBoy</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-foreground">ScholarBoy</h3>
+                  <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-primary">Beta</span>
+                </div>
                 <p className="text-xs text-foreground-muted">
                   {isLoading ? 'Thinking...' : mode === 'nav' ? 'Navigation Menu' : 'AI Doubt Solver'}
                 </p>
@@ -212,6 +215,7 @@ export function ScholarBoyWidget() {
 
           {/* Footer Input */}
           <div className="border-t border-border bg-surface p-4">
+            <p className="mb-2 text-center text-[10px] text-foreground-muted">ScholarBoy can make mistakes, double check the answer.</p>
             <form 
               onSubmit={(e) => { e.preventDefault(); handleSend(); }}
               className="flex items-center gap-2"
