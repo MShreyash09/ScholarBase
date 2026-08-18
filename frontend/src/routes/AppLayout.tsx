@@ -4,6 +4,7 @@ import { DEPARTMENTS } from "@scholarbase/shared-types";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { Moon, Sun } from "lucide-react";
+import { ScholarBoyWidget } from "@/components/ai/ScholarBoyWidget";
 
 export function AppLayout() {
   const { user, isAdmin, logout } = useAuth();
@@ -156,6 +157,7 @@ export function AppLayout() {
         </nav>
         <p>© {new Date().getFullYear()} ScholarBase. Built for students.</p>
       </footer>
+      <ScholarBoyWidget />
     </div>
   );
 }

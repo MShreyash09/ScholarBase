@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@fontsource/poppins": "^5.1.0",
+    "@radix-ui/react-collapsible": "^1.1.20",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-tabs": "^1.1.1",
     "@scholarbase/shared-types": "workspace:*",
@@ -19,12 +20,21 @@
     "axios": "^1.7.7",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
+    "katex": "^0.18.4",
     "lucide-react": "^1.29.0",
+    "marked": "^18.0.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^6.27.0",
+    "rehype-katex": "^7.0.1",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "shiki": "^4.4.3",
     "socket.io-client": "^4.8.3",
-    "tailwind-merge": "^2.5.4"
+    "tailwind-merge": "^2.5.4",
+    "use-stick-to-bottom": "^1.1.6"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",

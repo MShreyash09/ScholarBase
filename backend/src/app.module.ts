@@ -13,6 +13,7 @@ import { NotesModule } from "./modules/notes/notes.module";
 import { StudyRoomsModule } from "./modules/study-rooms/study-rooms.module";
 import { JwtAuthGuard } from "./common/guards/jwt-auth.guard";
 import { RolesGuard } from "./common/guards/roles.guard";
+import { AiModule } from './modules/ai/ai.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { RolesGuard } from "./common/guards/roles.guard";
     PapersModule,
     NotesModule,
     StudyRoomsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [

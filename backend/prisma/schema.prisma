@@ -1,10 +1,12 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 enum UserRole {
@@ -48,6 +50,10 @@ model User {
   studyRooms          StudyRoom[]          @relation("StudyRoomCreator")
   studyRoomMessages   StudyRoomMessage[]   @relation("StudyRoomMessageSender")
   studyRoomMembers    StudyRoomMember[]    @relation("StudyRoomMembership")
+  
+  aiPromptCount       Int                  @default(0) @map("ai_prompt_count")
+  aiLimitResetAt      DateTime?            @map("ai_limit_reset_at")
+  aiSessions          AiSession[]          @relation("UserAiSessions")
 
   @@map("users")
 }
@@ -247,4 +253,45 @@ model Note {
 
   @@index([subjectId])
   @@map("notes")
+}
+
+enum AiMessageRole {
+  user
+  assistant
+  system
+}
+
+model AiSession {
+  id        String      @id @default(uuid())
+  userId    String      @map("user_id")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  user      User        @relation("UserAiSessions", fields: [userId], references: [id], onDelete: Cascade)
+  messages  AiMessage[] @relation("SessionMessages")
+
+  @@index([userId])
+  @@map("ai_sessions")
+}
+
+model AiMessage {
+  id        String        @id @default(uuid())
+  sessionId String        @map("session_id")
+  role      AiMessageRole
+  content   String
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  session   AiSession     @relation("SessionMessages", fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@map("ai_messages")
+}
+
+model DocumentChunk {
+  id        String   @id @default(uuid())
+  content   String
+  metadata  Json?
+  embedding Unsupported("vector(1536)")?
+
+  @@map("document_chunks")
 }
