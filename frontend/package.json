@@ -10,6 +10,8 @@
     "lint": "eslint \"src/**/*.{ts,tsx}\""
   },
   "dependencies": {
+    "@daily-co/daily-js": "^0.92.2",
+    "@daily-co/daily-react": "^0.26.0",
     "@fontsource/poppins": "^5.1.0",
     "@radix-ui/react-collapsible": "^1.1.20",
     "@radix-ui/react-slot": "^1.1.0",

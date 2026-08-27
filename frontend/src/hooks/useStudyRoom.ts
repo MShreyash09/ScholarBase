@@ -3,9 +3,9 @@ import type { Socket } from "socket.io-client";
 import {
   StudyRoomClientEvent,
   StudyRoomServerEvent,
-  type MediaStateBroadcastPayload,
   type ParticipantJoinedPayload,
   type ParticipantLeftPayload,
+  type ReadReceiptBroadcastPayload,
   type RoomClosedPayload,
   type RoomErrorPayload,
   type RoomJoinedPayload,
@@ -30,8 +30,12 @@ export interface UseStudyRoomResult {
   participants: StudyRoomParticipantDto[];
   messages: StudyRoomMessageDto[];
   typingNames: string[];
+  /** userId -> the newest message that user has read, for chat-tick state. */
+  readReceipts: Record<string, { lastReadMessageId: string; lastReadAt: string }>;
   sendMessage: (body: string) => void;
   setTyping: (isTyping: boolean) => void;
+  /** Advances your own read watermark and tells the room. */
+  markRead: (messageId: string) => void;
   socketRef: React.MutableRefObject<Socket | null>;
 }
 
@@ -45,6 +49,9 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
   const [messages, setMessages] = useState<StudyRoomMessageDto[]>([]);
   const [typing, setTypingState] = useState<Record<string, string>>({});
   const typingTimers = useRef<Record<string, number>>({});
+  const [readReceipts, setReadReceipts] = useState<
+    Record<string, { lastReadMessageId: string; lastReadAt: string }>
+  >({});
 
   useEffect(() => {
     if (!roomId) return;
@@ -96,6 +103,14 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
       setSelf(payload.self);
       setParticipants(payload.participants);
       setMessages(payload.recentMessages);
+      setReadReceipts(
+        Object.fromEntries(
+          payload.readReceipts.map((receipt) => [
+            receipt.userId,
+            { lastReadMessageId: receipt.lastReadMessageId, lastReadAt: receipt.lastReadAt },
+          ]),
+        ),
+      );
     });
 
     socket.on(StudyRoomServerEvent.PARTICIPANT_JOINED, (payload: ParticipantJoinedPayload) => {
@@ -115,23 +130,6 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
     socket.on(StudyRoomServerEvent.MESSAGE, (message: StudyRoomMessageDto) => {
       if (cancelled) return;
       setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
-    });
-
-    socket.on(StudyRoomServerEvent.MEDIA_STATE, (payload: MediaStateBroadcastPayload) => {
-      if (cancelled) return;
-      setParticipants((prev) =>
-        prev.map((p) =>
-          p.socketId === payload.socketId
-            ? {
-                ...p,
-                inCall: payload.inCall,
-                audioEnabled: payload.audioEnabled,
-                videoEnabled: payload.videoEnabled,
-                screenEnabled: payload.screenEnabled,
-              }
-            : p,
-        ),
-      );
     });
 
     socket.on(StudyRoomServerEvent.TYPING, (payload: TypingBroadcastPayload) => {
@@ -158,6 +156,14 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
           return next;
         });
       }, TYPING_TIMEOUT_MS);
+    });
+
+    socket.on(StudyRoomServerEvent.READ_RECEIPT, (payload: ReadReceiptBroadcastPayload) => {
+      if (cancelled) return;
+      setReadReceipts((prev) => ({
+        ...prev,
+        [payload.userId]: { lastReadMessageId: payload.lastReadMessageId, lastReadAt: payload.lastReadAt },
+      }));
     });
 
     socket.on(StudyRoomServerEvent.CLOSED, (payload: RoomClosedPayload) => {
@@ -203,6 +209,14 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
     [roomId],
   );
 
+  const markRead = useCallback(
+    (messageId: string) => {
+      if (!roomId) return;
+      socketRef.current?.emit(StudyRoomClientEvent.MARK_READ, { roomId, messageId });
+    },
+    [roomId],
+  );
+
   const typingNames = useMemo(() => Object.values(typing), [typing]);
 
   return {
@@ -213,8 +227,10 @@ export function useStudyRoom(roomId: string | undefined): UseStudyRoomResult {
     participants,
     messages,
     typingNames,
+    readReceipts,
     sendMessage,
     setTyping,
+    markRead,
     socketRef,
   };
 }

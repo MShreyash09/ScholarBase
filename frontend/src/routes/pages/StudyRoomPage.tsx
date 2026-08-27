@@ -4,10 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { studyRoomsApi } from "@/lib/api/study-rooms";
 import { useAuth } from "@/hooks/useAuth";
 import { useStudyRoom } from "@/hooks/useStudyRoom";
-import { useStudyRoomMedia } from "@/hooks/useStudyRoomMedia";
 import { useWhiteboard } from "@/hooks/useWhiteboard";
 import { ChatPanel } from "@/components/study-room/ChatPanel";
-import { CallPanel } from "@/components/study-room/CallPanel";
+import { DailyCallPanel } from "@/components/study-room/DailyCallPanel";
+import { TypingToast } from "@/components/study-room/TypingToast";
 import { WhiteboardPanel } from "@/components/study-room/WhiteboardPanel";
 import { CopyInviteButton } from "@/components/study-room/CopyInviteButton";
 import { Badge } from "@/components/ui/badge";
@@ -26,10 +26,17 @@ export function StudyRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { user } = useAuth();
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const roomQuery = useQuery({
     queryKey: ["study-room", roomId],
     queryFn: () => studyRoomsApi.get(roomId!),
+    enabled: Boolean(roomId),
+  });
+
+  const dailyUrlQuery = useQuery({
+    queryKey: ["daily-url", roomId],
+    queryFn: () => studyRoomsApi.getDailyUrl(roomId!),
     enabled: Boolean(roomId),
   });
 
@@ -41,12 +48,34 @@ export function StudyRoomPage() {
     participants,
     messages,
     typingNames,
+    readReceipts,
     sendMessage,
     setTyping,
+    markRead,
     socketRef,
   } = useStudyRoom(roomId);
 
-  const media = useStudyRoomMedia(roomId, socketRef, participants, status === "connected");
+  // Clearing and incrementing are split into two effects on purpose: they
+  // react to different triggers. A single effect keyed on `messages.length`
+  // would never re-run — and so never clear the badge — when the panel opens
+  // without a new message having arrived in between.
+  useEffect(() => {
+    if (isChatOpen) setUnreadCount(0);
+  }, [isChatOpen]);
+
+  // A message that arrives while chat is closed had no way to be noticed
+  // before this — ChatPanel (and its typing/read logic) doesn't even mount
+  // until the panel is opened. This is what puts a number on the toggle.
+  useEffect(() => {
+    if (isChatOpen) return;
+    const latest = messages[messages.length - 1];
+    if (latest && latest.senderId !== user?.id) {
+      setUnreadCount((prev) => prev + 1);
+    }
+    // Only the newest message should ever trigger this — recounting the whole
+    // array on every render would double-count messages already seen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
 
   const board = useWhiteboard(
     roomId,
@@ -55,13 +84,6 @@ export function StudyRoomPage() {
     self?.userId,
     self?.socketId,
   );
-
-  // If the room is closed under us, release the mic/camera immediately rather
-  // than leaving the capture running behind a dead session.
-  const { inCall, leaveCall } = media;
-  useEffect(() => {
-    if (closedMessage && inCall) leaveCall();
-  }, [closedMessage, inCall, leaveCall]);
 
   if (roomQuery.isError) {
     return (
@@ -116,8 +138,18 @@ export function StudyRoomPage() {
           {roomQuery.data?.inviteCode && (
             <CopyInviteButton inviteCode={roomQuery.data.inviteCode} />
           )}
-          <Button variant="outline" size="sm" onClick={() => setIsChatOpen(!isChatOpen)}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="relative"
+            onClick={() => setIsChatOpen(!isChatOpen)}
+          >
             {isChatOpen ? "Hide chat" : "Show chat"}
+            {!isChatOpen && unreadCount > 0 && (
+              <span className="absolute -right-1.5 -top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold text-white">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link to="/study-rooms">Leave room</Link>
@@ -126,6 +158,11 @@ export function StudyRoomPage() {
       </div>
 
       {error && <p className="text-sm text-danger">{error}</p>}
+
+      {/* Only while chat is closed — the inline indicator inside ChatPanel
+          already covers it once the panel is open, and showing both would be
+          the same information twice. */}
+      {!isChatOpen && <TypingToast typingNames={typingNames} />}
 
       {self?.isModerator && (
         <div className="rounded-lg border border-primary/25 bg-primary/10 px-4 py-3 text-sm text-brand">
@@ -136,13 +173,14 @@ export function StudyRoomPage() {
 
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         <div className="flex-1 flex flex-col gap-4 w-full min-w-0">
-          <Card className="p-4">
-            <CallPanel
-              media={media}
-              self={self}
-              participants={participants}
-              disabled={status !== "connected"}
-            />
+          <Card className="flex flex-col overflow-hidden aspect-video min-h-[450px]">
+            {dailyUrlQuery.data?.url ? (
+              <DailyCallPanel url={dailyUrlQuery.data.url} />
+            ) : dailyUrlQuery.isLoading ? (
+              <div className="flex items-center justify-center flex-1 text-foreground-muted">Loading video call...</div>
+            ) : (
+              <div className="flex items-center justify-center flex-1 text-danger">Failed to load video call.</div>
+            )}
           </Card>
 
           {/* Deliberately its own panel rather than an overlay on the screen
@@ -179,9 +217,6 @@ export function StudyRoomPage() {
                       Mod
                     </Badge>
                   )}
-                  {(participant.socketId === self?.socketId ? media.inCall : participant.inCall) && (
-                    <Badge variant="success">on call</Badge>
-                  )}
                 </li>
               ))}
               {everyone.length === 0 && (
@@ -198,8 +233,10 @@ export function StudyRoomPage() {
               currentUserId={user?.id}
               typingNames={typingNames}
               disabled={status !== "connected"}
+              readReceipts={readReceipts}
               onSend={sendMessage}
               onTyping={setTyping}
+              onMarkRead={markRead}
             />
           </Card>
         )}

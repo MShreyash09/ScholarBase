@@ -24,4 +24,6 @@ export const studyRoomsApi = {
   create: (body: CreateStudyRoomRequestDto) =>
     apiClient.post<StudyRoomDto>("/study-rooms", body).then((r) => r.data),
   close: (id: string) => apiClient.delete<void>(`/study-rooms/${id}`).then((r) => r.data),
+  getDailyUrl: (id: string) => 
+    apiClient.get<{ url: string }>(`/study-rooms/${id}/daily-room`).then((r) => r.data),
 };
