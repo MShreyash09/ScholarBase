@@ -19,8 +19,8 @@ export function SignupPage() {
     setError(null);
     setIsSubmitting(true);
 
-    if (!email.endsWith("@mmcoe.edu.in")) {
-      setError("Only @mmcoe.edu.in emails are allowed.");
+    if (!email.endsWith("@mmcoe.edu.in") && !email.endsWith("@gmail.com")) {
+      setError("Only @mmcoe.edu.in and @gmail.com emails are allowed.");
       setIsSubmitting(false);
       return;
     }
@@ -112,8 +112,8 @@ export function SignupPage() {
               name="email"
               type="email"
               autoComplete="email"
-              placeholder="username@mmcoe.edu.in"
-              hint="Sign-up is limited to approved college domains."
+              placeholder="username@mmcoe.edu.in or @gmail.com"
+              hint="Sign-up is limited to approved domains."
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
