@@ -1,0 +1,55 @@
+name: scholarbase-turn
+
+# Standalone TURN relay, independent of docker-compose.prod.yml on purpose.
+#
+# ScholarBase's actual deployment is split — Vercel (frontend) + Render
+# (backend) — neither of which can run coturn: Render's web services only
+# proxy HTTP(S) on one port, and coturn needs raw UDP/TCP on 3478 plus a wide
+# relay port range. This file runs on its own small VM instead (an Oracle
+# Cloud Always Free instance costs nothing and comes with a public IP and a
+# 10TB/month outbound allowance — massive overkill for a study room's audio).
+# The backend then points at it over the internet via TURN_URLS.
+#
+# docker-compose.prod.yml *also* has a coturn service, for anyone using that
+# file's all-in-one Traefik deployment instead of the Vercel/Render split —
+# same image, same command, just colocated with the rest of the stack there.
+services:
+  coturn:
+    image: coturn/coturn:4.6-alpine
+    restart: unless-stopped
+    # Not a Docker bridge network: TURN hands out the ports it relays on
+    # *inside the protocol itself* (in the Allocate response), so a NAT in
+    # front of it would advertise addresses that don't exist from outside the
+    # container. Host networking is what makes --external-ip mean what it says.
+    network_mode: host
+    env_file: .env
+    command:
+      - "-n"
+      - "--realm=${TURN_REALM}"
+      - "--listening-port=3478"
+      - "--tls-listening-port=5349"
+      # REST auth: the backend derives a username/password pair per session
+      # from this same secret (HMAC-SHA1), so nothing is stored and a leaked
+      # credential expires on its own. Must match TURN_STATIC_AUTH_SECRET in
+      # the backend's environment exactly.
+      - "--use-auth-secret"
+      - "--static-auth-secret=${TURN_STATIC_AUTH_SECRET}"
+      # The VM's *public* IP. Get it with `curl -4 ifconfig.me` on the VM
+      # itself — on a NATed/cloud host this is not the same as `hostname -I`.
+      - "--external-ip=${TURN_PUBLIC_IP}"
+      - "--min-port=49160"
+      - "--max-port=49200"
+      - "--fingerprint"
+      # A TURN server that relays to anywhere is an open proxy for the whole
+      # internet. Denying loopback/private ranges means it can only ever
+      # carry traffic between two real WebRTC peers.
+      - "--no-multicast-peers"
+      - "--denied-peer-ip=0.0.0.0-0.255.255.255"
+      - "--denied-peer-ip=10.0.0.0-10.255.255.255"
+      - "--denied-peer-ip=127.0.0.0-127.255.255.255"
+      - "--denied-peer-ip=172.16.0.0-172.31.255.255"
+      - "--denied-peer-ip=192.168.0.0-192.168.255.255"
+      # A relay allocation per person on a call, not per socket connection —
+      # generous for a study room, not open-ended for whoever finds the port.
+      - "--user-quota=12"
+      - "--total-quota=200"

@@ -5,7 +5,6 @@ import { StudyRoomsController } from "./study-rooms.controller";
 import { StudyRoomsService } from "./study-rooms.service";
 import { StudyRoomsGateway } from "./study-rooms.gateway";
 import { StudyRoomsPresence } from "./study-rooms.presence";
-import { IceServersService } from "./ice-servers.service";
 
 @Module({
   imports: [
@@ -20,6 +19,6 @@ import { IceServersService } from "./ice-servers.service";
     }),
   ],
   controllers: [StudyRoomsController],
-  providers: [StudyRoomsService, StudyRoomsGateway, StudyRoomsPresence, IceServersService],
+  providers: [StudyRoomsService, StudyRoomsGateway, StudyRoomsPresence],
 })
 export class StudyRoomsModule {}

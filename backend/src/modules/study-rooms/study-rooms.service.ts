@@ -5,9 +5,11 @@ import {
   parseInviteCode,
   StudyRoomDto,
   StudyRoomMessageDto,
+  StudyRoomReadReceiptDto,
   StudyRoomVisibility,
   UserRole,
 } from "@scholarbase/shared-types";
+import { ConfigService } from "@nestjs/config";
 import { PrismaService } from "../../prisma/prisma.service";
 import { AuthenticatedUser } from "../../common/types/authenticated-user";
 import { CreateStudyRoomDto } from "./dto/create-study-room.dto";
@@ -26,6 +28,7 @@ export class StudyRoomsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly presence: StudyRoomsPresence,
+    private readonly config: ConfigService,
   ) {}
 
   /**
@@ -200,6 +203,64 @@ export class StudyRoomsService {
     return this.recentMessages(roomId, limit);
   }
 
+  /**
+   * Generates or fetches the Daily.co room URL for the given study room.
+   */
+  async getDailyRoomUrl(roomId: string, userId: string, role: UserRole): Promise<{ url: string }> {
+    await this.assertJoinable(roomId, userId, role);
+
+    const apiKey = this.config.get<string>("DAILY_API_KEY");
+    const domain = this.config.get<string>("DAILY_DOMAIN");
+
+    if (!apiKey || !domain) {
+      throw new Error("Daily.co API key or domain is not configured.");
+    }
+
+    // Daily allows custom names for rooms. We use the ScholarBase roomId.
+    // Daily limits room names to max 40 chars, alphanumeric and hyphens. 
+    // Since roomId is a UUID (36 chars), it fits perfectly.
+    const dailyRoomName = roomId;
+    const url = `https://${domain}/${dailyRoomName}`;
+
+    try {
+      // Check if room exists
+      const checkRes = await fetch(`https://api.daily.co/v1/rooms/${dailyRoomName}`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      
+      if (checkRes.ok) {
+        return { url };
+      }
+
+      // Room doesn't exist, create it
+      const createRes = await fetch("https://api.daily.co/v1/rooms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          name: dailyRoomName,
+          properties: {
+            // Room expires 24 hours from creation
+            exp: Math.round(Date.now() / 1000) + 86400,
+            enable_chat: false, // We use our own chat
+          },
+        }),
+      });
+
+      if (!createRes.ok) {
+        const errorData = await createRes.text();
+        throw new Error(`Failed to create Daily room: ${errorData}`);
+      }
+
+      return { url };
+    } catch (e) {
+      console.error("Daily.co API error:", e);
+      throw new Error("Failed to initialize video call room.");
+    }
+  }
+
   async recentMessages(roomId: string, limit = DEFAULT_MESSAGE_LIMIT): Promise<StudyRoomMessageDto[]> {
     const messages = await this.prisma.studyRoomMessage.findMany({
       where: { roomId },
@@ -209,6 +270,8 @@ export class StudyRoomsService {
     });
 
     // Queried newest-first to get the *latest* N, returned oldest-first to render.
+    // `delivered: true` for all of them — a message that already made it into
+    // the database has, by definition, already reached the room.
     return messages.reverse().map((message) => ({
       id: message.id,
       roomId: message.roomId,
@@ -216,6 +279,7 @@ export class StudyRoomsService {
       senderName: message.sender.fullName,
       body: message.body,
       createdAt: message.createdAt.toISOString(),
+      delivered: true,
     }));
   }
 
@@ -236,7 +300,56 @@ export class StudyRoomsService {
       senderName,
       body: message.body,
       createdAt: message.createdAt.toISOString(),
+      // The gateway overwrites this with a real answer — from presence, which
+      // it holds and this service does not — before broadcasting. `false` here
+      // is only the value between "created" and "the gateway decided".
+      delivered: false,
     };
+  }
+
+  /** Every member's read watermark, sent on join so tick state on old messages
+   *  is right from the first render. */
+  async readReceipts(roomId: string): Promise<StudyRoomReadReceiptDto[]> {
+    const receipts = await this.prisma.studyRoomReadReceipt.findMany({ where: { roomId } });
+    return receipts.map((receipt) => ({
+      userId: receipt.userId,
+      lastReadMessageId: receipt.lastReadMessageId,
+      lastReadAt: receipt.lastReadAt.toISOString(),
+    }));
+  }
+
+  /**
+   * Advances a user's read watermark. Upserted rather than inserted per message:
+   * one row per (room, user) is enough, since "read up to message X" implies
+   * every earlier message was read too.
+   *
+   * Silently ignores a `messageId` from a different room — a stale or forged id
+   * must not let a client mark receipts in a room it isn't even watching.
+   *
+   * Not guarded against moving backward: the client always sends the newest
+   * message it has rendered, so an older id arriving after a newer one would
+   * mean events were reordered in flight, not a real regression. Worth
+   * revisiting only if that assumption stops holding — the blast radius is a
+   * user's own read marker flickering, never another user's data.
+   */
+  async markRead(roomId: string, userId: string, messageId: string): Promise<Date | null> {
+    const message = await this.prisma.studyRoomMessage.findUnique({
+      where: { id: messageId },
+      select: { roomId: true, createdAt: true },
+    });
+    if (!message || message.roomId !== roomId) return null;
+
+    const readAt = new Date();
+    await this.prisma.studyRoomReadReceipt.upsert({
+      where: { roomId_userId: { roomId, userId } },
+      // A read receipt only ever moves forward — `create` covers "first ever
+      // receipt" and `update` covers every advance after that; nothing here
+      // should be able to walk it backwards.
+      create: { roomId, userId, lastReadMessageId: messageId, lastReadAt: readAt },
+      update: { lastReadMessageId: messageId, lastReadAt: readAt },
+    });
+
+    return readAt;
   }
 
   /**

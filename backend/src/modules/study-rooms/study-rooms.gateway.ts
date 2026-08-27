@@ -14,9 +14,8 @@ import { Server, Socket } from "socket.io";
 import {
   JoinRoomPayload,
   LeaveRoomPayload,
-  MediaStatePayload,
+  MarkReadPayload,
   SendMessagePayload,
-  SignalPayload,
   STUDY_ROOM_MESSAGE_MAX_LENGTH,
   STUDY_ROOM_NAMESPACE,
   StudyRoomClientEvent,
@@ -30,7 +29,6 @@ import {
   WhiteboardRequestDrawPayload,
   WhiteboardStrokePayload,
   WhiteboardUndoPayload,
-  ScreenPointerPayload,
   WHITEBOARD_MAX_POINTS_PER_CHUNK,
   WHITEBOARD_MAX_STROKE_WIDTH,
 } from "@scholarbase/shared-types";
@@ -164,10 +162,6 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
       fullName: user.fullName,
       role: user.role,
       isModerator,
-      inCall: false,
-      audioEnabled: false,
-      videoEnabled: false,
-      screenEnabled: false,
     };
 
     await client.join(roomId);
@@ -175,13 +169,17 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
     const participants = this.presence.list(roomId);
     this.presence.add(roomId, participant);
 
-    const recentMessages = await this.studyRoomsService.recentMessages(roomId);
+    const [recentMessages, readReceipts] = await Promise.all([
+      this.studyRoomsService.recentMessages(roomId),
+      this.studyRoomsService.readReceipts(roomId),
+    ]);
 
     client.emit(StudyRoomServerEvent.JOINED, {
       roomId,
       self: participant,
       participants,
       recentMessages,
+      readReceipts,
     });
 
     client.to(roomId).emit(StudyRoomServerEvent.PARTICIPANT_JOINED, { roomId, participant });
@@ -254,8 +252,43 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
     const user = client.data.user;
     const message = await this.studyRoomsService.createMessage(roomId, user.id, user.fullName, body);
 
+    // "Delivered" is presence, not a per-device receipt: true if anyone else
+    // was actually connected to the room at the moment this went out. That is
+    // the honest limit of a fire-and-forget room broadcast — good enough for a
+    // grey double-tick, and superseded the instant a real read receipt arrives.
+    message.delivered = this.presence.list(roomId).some((p) => p.userId !== user.id);
+
     // Echoed to the sender too, so every client renders the persisted row.
     this.server.to(roomId).emit(StudyRoomServerEvent.MESSAGE, message);
+  }
+
+  /**
+   * Advances the caller's read watermark and tells the room. One event per
+   * "caught up", not one per message — the client sends the newest message id
+   * it has actually rendered, debounced, and every earlier message is implied
+   * read along with it.
+   */
+  @SubscribeMessage(StudyRoomClientEvent.MARK_READ)
+  async handleMarkRead(
+    @ConnectedSocket() client: AuthedSocket,
+    @MessageBody() payload: MarkReadPayload,
+  ): Promise<void> {
+    const roomId = payload?.roomId;
+    const messageId = payload?.messageId;
+    if (!roomId || !messageId || !this.isInRoom(client, roomId)) return;
+
+    const user = client.data.user;
+    const readAt = await this.studyRoomsService.markRead(roomId, user.id, messageId);
+    if (!readAt) return;
+
+    // Excludes the sender: a client already knows its own read state the
+    // instant it sends this, and doesn't need the round trip to render it.
+    client.to(roomId).emit(StudyRoomServerEvent.READ_RECEIPT, {
+      roomId,
+      userId: user.id,
+      lastReadMessageId: messageId,
+      lastReadAt: readAt.toISOString(),
+    });
   }
 
   @SubscribeMessage(StudyRoomClientEvent.TYPING)
@@ -267,81 +300,11 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
     if (!roomId || !this.isInRoom(client, roomId)) return;
 
     const user = client.data.user;
-    client.to(roomId).emit(StudyRoomServerEvent.TYPING, {
+    this.server.to(roomId).emit(StudyRoomServerEvent.TYPING, {
       roomId,
       userId: user.id,
       fullName: user.fullName,
       isTyping: Boolean(payload.isTyping),
-    });
-  }
-
-  /**
-   * Relays SDP offers/answers and ICE candidates between two sockets in the
-   * same room. Media itself is peer-to-peer; the server never sees it.
-   */
-  @SubscribeMessage(StudyRoomClientEvent.SIGNAL)
-  handleSignal(
-    @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() payload: SignalPayload,
-  ): void {
-    const roomId = payload?.roomId;
-    if (!roomId || !this.isInRoom(client, roomId)) return;
-
-    const target = payload.targetSocketId;
-    // Only route to a socket that is actually a peer in this room — this stops
-    // a signed-in user from spraying signalling at arbitrary sockets.
-    if (!target || !this.presence.get(roomId, target)) return;
-
-    const user = client.data.user;
-    this.server.to(target).emit(StudyRoomServerEvent.SIGNAL, {
-      roomId,
-      fromSocketId: client.id,
-      fromUserId: user.id,
-      fromName: user.fullName,
-      kind: payload.kind,
-      data: payload.data,
-    });
-  }
-
-  @SubscribeMessage(StudyRoomClientEvent.MEDIA_STATE)
-  handleMediaState(
-    @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() payload: MediaStatePayload,
-  ): void {
-    const roomId = payload?.roomId;
-    if (!roomId || !this.isInRoom(client, roomId)) return;
-
-    const state = {
-      inCall: Boolean(payload.inCall),
-      audioEnabled: Boolean(payload.audioEnabled),
-      videoEnabled: Boolean(payload.videoEnabled),
-      screenEnabled: Boolean(payload.screenEnabled),
-    };
-
-    // One screen share per room. The client disables its own button, but that
-    // is only a courtesy — two people can still hit "Share" in the same instant,
-    // and a hand-crafted socket frame ignores the UI entirely.
-    if (state.screenEnabled) {
-      if (!this.presence.claimPresenter(roomId, client.id)) {
-        state.screenEnabled = false;
-        this.fail(client, "Someone else is already sharing their screen.");
-      }
-    } else {
-      this.presence.releasePresenter(roomId, client.id);
-    }
-
-    const participant = this.presence.updateMediaState(roomId, client.id, state);
-    if (!participant) return;
-
-    // Broadcast to the whole room including the sender, so a client whose screen
-    // share was rejected converges on the corrected state instead of believing
-    // it is presenting. Clients ignore media state about their own socket except
-    // for this field.
-    this.server.to(roomId).emit(StudyRoomServerEvent.MEDIA_STATE, {
-      roomId,
-      socketId: client.id,
-      userId: participant.userId,
-      ...state,
     });
   }
 
@@ -533,47 +496,6 @@ export class StudyRoomsGateway implements OnGatewayInit, OnGatewayDisconnect {
 
     if (this.presence.setGrant(roomId, userId, allowed) === undefined) return;
     this.broadcastBoardMeta(roomId);
-  }
-
-  // --- screen-share laser pointer -------------------------------------------
-
-  /**
-   * Relays a pointer position over the shared screen. Nothing is stored: a
-   * pointer is only meaningful while it is moving, and a stale one is worse
-   * than none. Clients drop dots that stop updating.
-   */
-  @SubscribeMessage(StudyRoomClientEvent.SCREEN_POINTER)
-  handleScreenPointer(
-    @ConnectedSocket() client: AuthedSocket,
-    @MessageBody() payload: ScreenPointerPayload,
-  ): void {
-    const roomId = payload?.roomId;
-    if (!roomId || !this.isInRoom(client, roomId)) return;
-
-    // Only meaningful while somebody is actually sharing — otherwise there is
-    // no picture to point at, and this becomes a free broadcast channel.
-    if (!this.presence.currentPresenter(roomId)) return;
-
-    const { x, y } = payload;
-    // Checked as numbers rather than coerced: JSON turns NaN and undefined into
-    // null, and Number(null) is 0 — so coercing would silently accept a
-    // malformed coordinate as a real point at the top-left corner.
-    if (typeof x !== "number" || typeof y !== "number") return;
-    // Coordinates are normalized against the video content; anything outside
-    // 0–1 did not come from our client.
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    if (x < 0 || x > 1 || y < 0 || y > 1) return;
-
-    const user = client.data.user;
-    client.to(roomId).emit(StudyRoomServerEvent.SCREEN_POINTER, {
-      roomId,
-      x,
-      y,
-      visible: Boolean(payload.visible),
-      socketId: client.id,
-      userId: user.id,
-      fullName: user.fullName,
-    });
   }
 
   private isInRoom(client: Socket, roomId: string): boolean {

@@ -10,7 +10,6 @@ import {
   Query,
 } from "@nestjs/common";
 import {
-  IceConfigDto,
   StudyRoomDto,
   StudyRoomMessageDto,
   UserRole,
@@ -20,7 +19,6 @@ import { Roles } from "../../common/decorators/roles.decorator";
 import { AuthenticatedUser } from "../../common/types/authenticated-user";
 import { StudyRoomsService } from "./study-rooms.service";
 import { StudyRoomsGateway } from "./study-rooms.gateway";
-import { IceServersService } from "./ice-servers.service";
 import { CreateStudyRoomDto } from "./dto/create-study-room.dto";
 import { RedeemInviteDto } from "./dto/redeem-invite.dto";
 import { FindMessagesQueryDto } from "./dto/find-messages-query.dto";
@@ -35,22 +33,11 @@ export class StudyRoomsController {
   constructor(
     private readonly studyRoomsService: StudyRoomsService,
     private readonly studyRoomsGateway: StudyRoomsGateway,
-    private readonly iceServersService: IceServersService,
   ) {}
 
   @Get()
   findAll(@CurrentUser() user: AuthenticatedUser): Promise<StudyRoomDto[]> {
     return this.studyRoomsService.findAll(user.sub);
-  }
-
-  /**
-   * STUN/TURN servers for the WebRTC mesh. Declared before `:id` so the literal
-   * path wins over the parameterised one. Served per request because TURN
-   * credentials expire, and per user so relay usage is attributable.
-   */
-  @Get("ice-servers")
-  getIceServers(@CurrentUser() user: AuthenticatedUser): IceConfigDto {
-    return this.iceServersService.getIceConfig(user.sub);
   }
 
   /**
@@ -76,6 +63,11 @@ export class StudyRoomsController {
   @Get(":id")
   findOne(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser): Promise<StudyRoomDto> {
     return this.studyRoomsService.findOne(id, user.sub, user.role);
+  }
+
+  @Get(":id/daily-room")
+  getDailyRoomUrl(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser): Promise<{ url: string }> {
+    return this.studyRoomsService.getDailyRoomUrl(id, user.sub, user.role);
   }
 
   @Get(":id/messages")

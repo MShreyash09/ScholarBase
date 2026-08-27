@@ -307,19 +307,4 @@ export class StudyRoomsPresence implements OnModuleDestroy {
     }
     return counts;
   }
-
-  updateMediaState(
-    roomId: string,
-    socketId: string,
-    state: { inCall: boolean; audioEnabled: boolean; videoEnabled: boolean; screenEnabled: boolean },
-  ): StudyRoomParticipantDto | undefined {
-    const participant = this.rooms.get(roomId)?.get(socketId);
-    if (!participant) return undefined;
-
-    participant.inCall = state.inCall;
-    participant.audioEnabled = state.audioEnabled;
-    participant.videoEnabled = state.videoEnabled;
-    participant.screenEnabled = state.screenEnabled;
-    return participant;
-  }
 }

@@ -50,6 +50,7 @@ model User {
   studyRooms          StudyRoom[]          @relation("StudyRoomCreator")
   studyRoomMessages   StudyRoomMessage[]   @relation("StudyRoomMessageSender")
   studyRoomMembers    StudyRoomMember[]    @relation("StudyRoomMembership")
+  studyRoomReadReceipts StudyRoomReadReceipt[] @relation("StudyRoomReadReceipts")
   
   aiPromptCount       Int                  @default(0) @map("ai_prompt_count")
   aiLimitResetAt      DateTime?            @map("ai_limit_reset_at")
@@ -199,6 +200,7 @@ model StudyRoom {
   createdBy User               @relation("StudyRoomCreator", fields: [createdById], references: [id], onDelete: Cascade)
   messages  StudyRoomMessage[]
   members   StudyRoomMember[]
+  readReceipts StudyRoomReadReceipt[]
 
   @@index([isActive, createdAt])
   @@map("study_rooms")
@@ -232,6 +234,25 @@ model StudyRoomMessage {
 
   @@index([roomId, createdAt])
   @@map("study_room_messages")
+}
+
+/// Read-receipt watermark: "this user has seen everything in this room up to
+/// this message". One row per (room, user) rather than one per message — a
+/// single pointer that moves forward is enough to derive every message's tick
+/// state (sent / delivered / read) by comparing timestamps, and it is what
+/// keeps marking ten messages read in one glance a single UPSERT instead of ten.
+model StudyRoomReadReceipt {
+  id                String   @id @default(uuid())
+  roomId            String   @map("room_id")
+  userId            String   @map("user_id")
+  lastReadMessageId String   @map("last_read_message_id")
+  lastReadAt        DateTime @map("last_read_at")
+
+  room StudyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User      @relation("StudyRoomReadReceipts", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, userId])
+  @@map("study_room_read_receipts")
 }
 
 model Note {

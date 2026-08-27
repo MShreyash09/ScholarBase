@@ -61,6 +61,27 @@ export interface StudyRoomMessageDto {
   senderName: string;
   body: string;
   createdAt: string;
+  /**
+   * Whether anyone else was actually present in the room when this was sent.
+   * A message replayed from history (`recentMessages`) is always `true` — it
+   * is already sitting in the database, which is delivery enough for display
+   * purposes. A message arriving live is `true` only if the gateway found
+   * another participant in the room at broadcast time, mirroring the honest
+   * limit of a fire-and-forget room broadcast: it is presence, not a
+   * per-device receipt.
+   */
+  delivered: boolean;
+}
+
+/**
+ * "This user has seen everything in this room up to this message." One
+ * watermark per (room, user), not one row per message per reader — the tick
+ * state of every message is derived by comparing timestamps against it.
+ */
+export interface StudyRoomReadReceiptDto {
+  userId: string;
+  lastReadMessageId: string;
+  lastReadAt: string;
 }
 
 /**
@@ -78,11 +99,6 @@ export interface StudyRoomParticipantDto {
    * shown in the UI on purpose: admin presence is never hidden from the room.
    */
   isModerator: boolean;
-  /** True once the participant has published a media stream to the room. */
-  inCall: boolean;
-  audioEnabled: boolean;
-  videoEnabled: boolean;
-  screenEnabled: boolean;
 }
 
 /** Events the browser sends to the server. */
@@ -91,8 +107,7 @@ export enum StudyRoomClientEvent {
   LEAVE = "room:leave",
   SEND_MESSAGE = "chat:send",
   TYPING = "chat:typing",
-  SIGNAL = "webrtc:signal",
-  MEDIA_STATE = "media:state",
+  MARK_READ = "chat:read",
   WHITEBOARD_CLAIM = "whiteboard:claim",
   WHITEBOARD_RELEASE = "whiteboard:release",
   WHITEBOARD_STROKE = "whiteboard:stroke",
@@ -101,7 +116,6 @@ export enum StudyRoomClientEvent {
   WHITEBOARD_REQUEST_DRAW = "whiteboard:request-draw",
   WHITEBOARD_GRANT = "whiteboard:grant",
   WHITEBOARD_REVOKE = "whiteboard:revoke",
-  SCREEN_POINTER = "screen:pointer",
 }
 
 /** Events the server pushes to the browser. */
@@ -111,8 +125,7 @@ export enum StudyRoomServerEvent {
   PARTICIPANT_LEFT = "room:participant-left",
   MESSAGE = "chat:message",
   TYPING = "chat:typing",
-  SIGNAL = "webrtc:signal",
-  MEDIA_STATE = "media:state",
+  READ_RECEIPT = "chat:read-receipt",
   /** The room was closed under us — moderation, or the creator ending it. */
   CLOSED = "room:closed",
   ERROR = "room:error",
@@ -124,42 +137,7 @@ export enum StudyRoomServerEvent {
   /** Only ever sent to the board owner. */
   WHITEBOARD_DRAW_REQUESTED = "whiteboard:draw-requested",
   WHITEBOARD_GRANTS = "whiteboard:grants",
-  SCREEN_POINTER = "screen:pointer",
 }
-
-// --- screen-share laser pointer --------------------------------------------
-
-/**
- * A pointer position over the shared screen, in **normalized 0–1 coordinates
- * relative to the video content** — not the tile, and never pixels.
- *
- * Two reasons it must be normalized. Every viewer's window is a different size,
- * so pixels would land somewhere different on each screen. And the tile renders
- * the video with `object-contain`, so the picture is letterboxed inside its
- * box — coordinates are relative to the visible picture, with the bars excluded.
- *
- * `visible: false` retracts the pointer when the cursor leaves the video.
- */
-export interface ScreenPointerPayload {
-  roomId: string;
-  x: number;
-  y: number;
-  visible: boolean;
-}
-
-export interface ScreenPointerBroadcastPayload extends ScreenPointerPayload {
-  socketId: string;
-  userId: string;
-  fullName: string;
-}
-
-/** Outgoing pointer updates are throttled to this interval. Emitting per
- * pointermove would put ~100 messages/sec on the gateway per person. */
-export const SCREEN_POINTER_THROTTLE_MS = 40;
-
-/** A pointer with no update for this long is treated as gone, so a dot cannot
- * be left frozen on everyone's screen by a dropped connection. */
-export const SCREEN_POINTER_STALE_MS = 2500;
 
 // --- whiteboard ------------------------------------------------------------
 
@@ -297,6 +275,9 @@ export interface RoomJoinedPayload {
   self: StudyRoomParticipantDto;
   participants: StudyRoomParticipantDto[];
   recentMessages: StudyRoomMessageDto[];
+  /** Every member's read watermark, so tick state on old messages is right
+   *  from the first render instead of waiting on a live receipt. */
+  readReceipts: StudyRoomReadReceiptDto[];
 }
 
 export interface ParticipantJoinedPayload {
@@ -317,68 +298,18 @@ export interface TypingBroadcastPayload {
   isTyping: boolean;
 }
 
-export type SignalKind = "offer" | "answer" | "ice-candidate";
-
-/**
- * WebRTC signalling envelope. The server only routes these between two sockets
- * in the same room — `data` (SDP or ICE candidate) is opaque to it.
- */
-export interface SignalPayload {
+export interface MarkReadPayload {
   roomId: string;
-  targetSocketId: string;
-  kind: SignalKind;
-  data: unknown;
+  /** The newest message this client has actually seen. */
+  messageId: string;
 }
 
-export interface SignalBroadcastPayload {
+export interface ReadReceiptBroadcastPayload {
   roomId: string;
-  fromSocketId: string;
-  fromUserId: string;
-  fromName: string;
-  kind: SignalKind;
-  data: unknown;
-}
-
-export interface MediaStatePayload {
-  roomId: string;
-  inCall: boolean;
-  audioEnabled: boolean;
-  videoEnabled: boolean;
-  screenEnabled: boolean;
-}
-
-export interface MediaStateBroadcastPayload extends MediaStatePayload {
-  socketId: string;
   userId: string;
+  lastReadMessageId: string;
+  lastReadAt: string;
 }
-
 export interface RoomErrorPayload {
   message: string;
-}
-
-/**
- * A single ICE server, shaped like the browser's `RTCIceServer` but declared
- * here so the backend (which has no DOM lib) can build the same objects.
- */
-export interface IceServerDto {
-  urls: string | string[];
-  username?: string;
-  credential?: string;
-}
-
-/**
- * ICE configuration handed to the browser at call time.
- *
- * This is served at runtime rather than baked into the frontend bundle because
- * TURN credentials are short-lived: coturn's REST-auth scheme derives them from
- * a shared secret plus an expiry, so they cannot live in a build-time env var.
- * `turnConfigured` lets the client tell "no relay was even offered" apart from
- * "the relay was tried and failed", which are very different things to report.
- */
-export interface IceConfigDto {
-  iceServers: IceServerDto[];
-  /** Seconds the credentials stay valid; the client refetches after this. */
-  ttlSeconds: number;
-  /** False when only STUN is available — peer-to-peer or nothing. */
-  turnConfigured: boolean;
 }

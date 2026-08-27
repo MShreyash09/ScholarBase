@@ -40,7 +40,7 @@ async function main() {
     .filter(Boolean);
 
   if (domains.length === 0) {
-    throw new Error("ALLOWED_EMAIL_DOMAINS must list at least one domain, e.g. youruniversity.edu.in");
+    throw new Error("ALLOWED_EMAIL_DOMAINS must list at least one domain, e.g. mmcoe.edu.in");
   }
 
   for (const domain of domains) {

@@ -97,7 +97,11 @@ A room has two layers:
 
 - **Chat** — a socket.io gateway on the `/study-rooms` namespace (`backend/src/modules/study-rooms`).
   Messages are persisted, and the last 50 are replayed when you join. Presence and typing
-  indicators are in-memory only.
+  indicators are in-memory only. A floating toast surfaces "X is typing…" even while the chat
+  panel is closed (it starts closed by default), so a peer composing a message is never invisible.
+  Messages carry WhatsApp-style ticks — sent, delivered (someone else was in the room when it was
+  sent), and read (blue, once a read receipt arrives) — backed by one watermark row per
+  `(room, user)` in `study_room_read_receipts` rather than a row per message per reader.
 - **Audio & video** — press *Join audio & video*. Peers connect in a **mesh** of WebRTC
   connections; the server only relays SDP offers/answers and ICE candidates and never sees media.
 
