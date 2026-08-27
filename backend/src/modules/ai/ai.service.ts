@@ -47,12 +47,18 @@ Be encouraging, concise, and stay strictly within the context of the student's q
       throw new HttpException('ScholarBoy needs rest. Come back in a few hours!', HttpStatus.PAYMENT_REQUIRED);
     }
 
-    let session;
-    if (sessionId) {
-      session = await this.prisma.aiSession.findUnique({ where: { id: sessionId } });
-    }
+    // Scoped by userId, not just id: without it, passing someone else's
+    // sessionId would append your messages to — and let you read back — their
+    // conversation. That mattered little while history was invisible; it
+    // matters a lot now that sessions can be reopened.
+    let session = sessionId
+      ? await this.prisma.aiSession.findFirst({ where: { id: sessionId, userId } })
+      : null;
+
     if (!session) {
-      session = await this.prisma.aiSession.create({ data: { userId } });
+      session = await this.prisma.aiSession.create({
+        data: { userId, title: AiService.deriveTitle(question) },
+      });
     }
 
     await this.prisma.aiMessage.create({
@@ -131,6 +137,14 @@ Be encouraging, concise, and stay strictly within the context of the student's q
       },
     });
 
+    // Bumps updated_at, which is what orders the history list — Prisma's
+    // @updatedAt only fires on a write to the session row itself, and writing a
+    // message is not one. Also backfills the title for sessions that predate it.
+    await this.prisma.aiSession.update({
+      where: { id: session.id },
+      data: { title: session.title ?? AiService.deriveTitle(question) },
+    });
+
     // Deduct the limit ONLY after a successful response
     await this.prisma.user.update({
       where: { id: userId },
@@ -145,6 +159,102 @@ Be encouraging, concise, and stay strictly within the context of the student's q
       answer: aiResponseContent,
       promptsRemaining: 20 - (currentCount + 1),
     };
+  }
+
+
+  /**
+   * The conversation list for the history sidebar. Deliberately does not load
+   * message bodies: a student with fifty sessions would otherwise pull their
+   * entire ScholarBoy history over the wire to render fifty titles.
+   */
+  async listSessions(userId: string) {
+    const sessions = await this.prisma.aiSession.findMany({
+      where: { userId, messages: { some: {} } },
+      orderBy: { updatedAt: 'desc' },
+      take: 100,
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        updatedAt: true,
+        _count: { select: { messages: true } },
+        // Sessions created before titles existed still need a label.
+        messages: {
+          where: { role: AiMessageRole.user },
+          orderBy: { createdAt: 'asc' },
+          take: 1,
+          select: { content: true },
+        },
+      },
+    });
+
+    return sessions.map((session) => ({
+      id: session.id,
+      title: session.title ?? AiService.deriveTitle(session.messages[0]?.content ?? 'New chat'),
+      messageCount: session._count.messages,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    }));
+  }
+
+  /** Full transcript, for reopening a past conversation. */
+  async getSession(userId: string, sessionId: string) {
+    const session = await this.prisma.aiSession.findFirst({
+      where: { id: sessionId, userId },
+      include: { messages: { orderBy: { createdAt: 'asc' } } },
+    });
+    if (!session) throw new HttpException('Conversation not found', HttpStatus.NOT_FOUND);
+
+    return {
+      id: session.id,
+      title: session.title ?? AiService.deriveTitle(session.messages[0]?.content ?? 'New chat'),
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      messages: session.messages
+        // `system` rows are internal; the transcript is what was actually said.
+        .filter((message) => message.role !== AiMessageRole.system)
+        .map((message) => ({
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          createdAt: message.createdAt,
+        })),
+    };
+  }
+
+  async renameSession(userId: string, sessionId: string, title: string) {
+    const trimmed = title.trim().slice(0, 120);
+    if (!trimmed) throw new HttpException('Title cannot be empty', HttpStatus.BAD_REQUEST);
+
+    // updateMany rather than update: it filters on userId in the same statement,
+    // so there is no window between checking ownership and writing.
+    const { count } = await this.prisma.aiSession.updateMany({
+      where: { id: sessionId, userId },
+      data: { title: trimmed },
+    });
+    if (count === 0) throw new HttpException('Conversation not found', HttpStatus.NOT_FOUND);
+
+    return { id: sessionId, title: trimmed };
+  }
+
+  async deleteSession(userId: string, sessionId: string) {
+    const { count } = await this.prisma.aiSession.deleteMany({ where: { id: sessionId, userId } });
+    if (count === 0) throw new HttpException('Conversation not found', HttpStatus.NOT_FOUND);
+    // Messages go with it: AiMessage.session is onDelete: Cascade.
+    return { deleted: true };
+  }
+
+  /**
+   * A conversation title is the opening question, cut at a word boundary. Good
+   * enough to recognise a chat at a glance, and free — asking the model to
+   * summarise would burn one of the student's twenty daily prompts.
+   */
+  private static deriveTitle(question: string): string {
+    const clean = question.replace(/\s+/g, ' ').trim();
+    if (clean.length <= 60) return clean || 'New chat';
+    const cut = clean.slice(0, 60);
+    const lastSpace = cut.lastIndexOf(' ');
+    return `${(lastSpace > 30 ? cut.slice(0, lastSpace) : cut).trim()}...`;
   }
 
   async getStatus(userId: string) {

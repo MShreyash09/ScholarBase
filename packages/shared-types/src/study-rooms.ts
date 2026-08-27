@@ -355,3 +355,30 @@ export interface MediaStateBroadcastPayload extends MediaStatePayload {
 export interface RoomErrorPayload {
   message: string;
 }
+
+/**
+ * A single ICE server, shaped like the browser's `RTCIceServer` but declared
+ * here so the backend (which has no DOM lib) can build the same objects.
+ */
+export interface IceServerDto {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+/**
+ * ICE configuration handed to the browser at call time.
+ *
+ * This is served at runtime rather than baked into the frontend bundle because
+ * TURN credentials are short-lived: coturn's REST-auth scheme derives them from
+ * a shared secret plus an expiry, so they cannot live in a build-time env var.
+ * `turnConfigured` lets the client tell "no relay was even offered" apart from
+ * "the relay was tried and failed", which are very different things to report.
+ */
+export interface IceConfigDto {
+  iceServers: IceServerDto[];
+  /** Seconds the credentials stay valid; the client refetches after this. */
+  ttlSeconds: number;
+  /** False when only STUN is available — peer-to-peer or nothing. */
+  turnConfigured: boolean;
+}

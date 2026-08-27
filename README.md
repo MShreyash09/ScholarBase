@@ -107,8 +107,20 @@ Notes on the media layer:
   must be served over TLS.
 - Mesh topology is fine for the handful of people a study room holds. A large room would need an
   SFU instead — every participant currently uploads one stream per peer.
-- Set `VITE_ICE_SERVERS` (JSON `RTCIceServer[]`) to add a TURN server. The default is a public
-  STUN server, which fails for peers behind symmetric NATs.
+- **A TURN server is required for anyone outside your own network.** STUN alone only works when
+  the two browsers can reach each other directly, and two students on different home ISPs usually
+  cannot: carrier-grade NAT is frequently *symmetric*, which makes the public address STUN
+  discovers unusable by the far side. Every candidate pair then fails and the call sits silent.
+- ICE servers are served at runtime by `GET /api/study-rooms/ice-servers`, not baked into the
+  frontend bundle, because TURN credentials are minted with an expiry. Configure them on the
+  **backend**:
+  - `TURN_URLS` — comma-separated, list both `?transport=udp` and `?transport=tcp`.
+  - `TURN_STATIC_AUTH_SECRET` — coturn shared secret (`--use-auth-secret`); the backend derives a
+    per-session `<expiry>:<userId>` / HMAC-SHA1 credential pair from it.
+  - or `TURN_USERNAME` + `TURN_PASSWORD` for a hosted provider that issues fixed credentials.
+  `infra/docker-compose.prod.yml` ships a `coturn` service wired to these. With no TURN configured
+  the app still runs and now says so explicitly in the call panel instead of failing silently.
+- `VITE_ICE_SERVERS` still works as a local override when testing a relay by hand.
 - Presence lives in a single process's memory, so running more than one backend replica needs the
   socket.io Redis adapter plus a shared presence store.
 

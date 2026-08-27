@@ -78,6 +78,13 @@ services:
       MINIO_BUCKET_PAPERS: ${MINIO_BUCKET_PAPERS}
       MINIO_BUCKET_NOTES: ${MINIO_BUCKET_NOTES}
       MINIO_BUCKET_AVATARS: ${MINIO_BUCKET_AVATARS}
+      # Served to the browser at call time by GET /api/study-rooms/ice-servers.
+      STUN_URLS: ${STUN_URLS:-stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302}
+      # Both transports are listed: some networks block UDP 3478 outright, and
+      # the TCP candidate is the only thing that gets through there.
+      TURN_URLS: ${TURN_URLS:-turn:${TURN_REALM}:3478?transport=udp,turn:${TURN_REALM}:3478?transport=tcp}
+      TURN_STATIC_AUTH_SECRET: ${TURN_STATIC_AUTH_SECRET}
+      TURN_CREDENTIAL_TTL: ${TURN_CREDENTIAL_TTL:-43200}
       PORT: 3000
     labels:
       - "traefik.enable=true"
@@ -101,6 +108,50 @@ services:
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls.certresolver=le"
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
+
+  # TURN relay for study-room audio/video.
+  #
+  # Without this, a call only connects when both browsers can reach each other
+  # directly. Two students on different home broadband lines usually cannot:
+  # Indian ISPs put subscribers behind carrier-grade NAT, which is often
+  # symmetric, and a symmetric NAT makes the public address STUN reports
+  # unusable by the far side. Every candidate pair then fails and the call sits
+  # silent forever. coturn relays the media instead, which always works.
+  #
+  # `network_mode: host` is not laziness: TURN hands out the ports it relays on
+  # inside the protocol itself, so a Docker bridge NAT in front of it would
+  # advertise addresses that do not exist. The relay port range must be reachable
+  # from the internet — open 3478/tcp+udp and 49160-49200/udp on the firewall
+  # and, on a cloud host, in the provider's security group as well.
+  coturn:
+    image: coturn/coturn:4.6-alpine
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - "-n"
+      - "--realm=${TURN_REALM}"
+      - "--listening-port=3478"
+      # REST auth: credentials are HMACs of an expiry timestamp under this
+      # secret, minted per session by the backend. Nothing is stored, and a
+      # leaked credential dies on its own.
+      - "--use-auth-secret"
+      - "--static-auth-secret=${TURN_STATIC_AUTH_SECRET}"
+      # The public IP to advertise. On a NATed VM (EC2, Lightsail) this must be
+      # the *public* address or the candidates coturn offers are unroutable.
+      - "--external-ip=${TURN_PUBLIC_IP}"
+      - "--min-port=49160"
+      - "--max-port=49200"
+      - "--fingerprint"
+      # A TURN server that will relay to anywhere is an open proxy. Loopback and
+      # private ranges are denied so it can only ever carry peer traffic.
+      - "--no-multicast-peers"
+      - "--denied-peer-ip=0.0.0.0-0.255.255.255"
+      - "--denied-peer-ip=10.0.0.0-10.255.255.255"
+      - "--denied-peer-ip=127.0.0.0-127.255.255.255"
+      - "--denied-peer-ip=172.16.0.0-172.31.255.255"
+      - "--denied-peer-ip=192.168.0.0-192.168.255.255"
+      - "--user-quota=12"
+      - "--total-quota=200"
 
   # v1 backup: scheduled pg_dump with retention (works out of the box, no
   # extra Postgres-side config). Upgrade to pgBackRest + WAL archiving only

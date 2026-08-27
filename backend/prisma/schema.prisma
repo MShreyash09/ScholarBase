@@ -264,13 +264,16 @@ enum AiMessageRole {
 model AiSession {
   id        String      @id @default(uuid())
   userId    String      @map("user_id")
+  /// Derived from the first question asked, so the history list is scannable
+  /// without loading every conversation's messages.
+  title     String?
   createdAt DateTime    @default(now()) @map("created_at")
   updatedAt DateTime    @updatedAt @map("updated_at")
 
   user      User        @relation("UserAiSessions", fields: [userId], references: [id], onDelete: Cascade)
   messages  AiMessage[] @relation("SessionMessages")
 
-  @@index([userId])
+  @@index([userId, updatedAt])
   @@map("ai_sessions")
 }
 

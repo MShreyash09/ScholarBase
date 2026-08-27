@@ -8,34 +8,7 @@ import {
   type SignalBroadcastPayload,
   type StudyRoomParticipantDto,
 } from "@scholarbase/shared-types";
-
-/**
- * TURN is required whenever a peer sits behind a symmetric NAT; STUN alone is
- * enough for most campus/home networks. Supply VITE_ICE_SERVERS as a JSON
- * RTCIceServer[] to add a TURN server in production.
- */
-function resolveIceServers(): RTCIceServer[] {
-  const raw = import.meta.env.VITE_ICE_SERVERS;
-  if (raw) {
-    try {
-      return JSON.parse(raw) as RTCIceServer[];
-    } catch {
-      console.warn("VITE_ICE_SERVERS is not valid JSON; falling back to public STUN/TURN");
-    }
-  }
-  return [
-    { urls: "stun:stun.l.google.com:19302" },
-    {
-      urls: [
-        "turn:openrelay.metered.ca:80",
-        "turn:openrelay.metered.ca:443",
-        "turn:openrelay.metered.ca:443?transport=tcp",
-      ],
-      username: "openrelayproject",
-      credential: "openrelayproject",
-    },
-  ];
-}
+import { useIceServers } from "./useIceServers";
 
 // --- capture constraints ---------------------------------------------------
 //
@@ -169,6 +142,25 @@ interface PeerRecord {
    * connection is in progress.
    */
   offerSentAt?: number;
+  /**
+   * How many ICE restarts this pair has been through. A cross-network path can
+   * fail for reasons that a fresh set of candidates fixes (a NAT binding
+   * expiring, a relay allocation dropped, the first TURN server of the list
+   * being unreachable). Rebuilding the whole RTCPeerConnection instead — which
+   * is all the old code did — throws away the negotiated transceivers and
+   * senders, so the pair restarted from zero every three seconds and never
+   * settled. Bounded, so a genuinely unreachable peer stops retrying.
+   */
+  iceRestarts: number;
+  /**
+   * Whether this connection ever produced a relay (TURN) candidate. Together
+   * with `turnConfigured` this separates the two failure modes that look
+   * identical to a student: "no relay was configured" from "the relay was
+   * offered but the path still failed".
+   */
+  sawRelayCandidate: boolean;
+  /** When the pair first went `disconnected`, for the grace period below. */
+  disconnectedAt?: number;
 }
 
 /**
@@ -181,6 +173,21 @@ const OFFER_TIMEOUT_MS = 10_000;
 /** How often the mesh is reconciled against the participant list. */
 const MESH_RECONCILE_MS = 3000;
 
+/**
+ * How many times a failed pair is given a fresh set of ICE candidates before we
+ * give up and tell the user. Two is enough to ride out a dropped relay
+ * allocation without hammering a TURN server that is genuinely unreachable.
+ */
+const MAX_ICE_RESTARTS = 2;
+
+/**
+ * `disconnected` is not `failed`: it routinely appears for a second or two on a
+ * home connection when a NAT binding is refreshed, and recovers on its own.
+ * Acting on it immediately is how a working call gets torn down; this is how
+ * long we let it try to recover before treating it as a real failure.
+ */
+const DISCONNECTED_GRACE_MS = 6000;
+
 export interface UseStudyRoomMediaResult {
   inCall: boolean;
   isStarting: boolean;
@@ -191,6 +198,8 @@ export interface UseStudyRoomMediaResult {
   screenEnabled: boolean;
   hasVideoTrack: boolean;
   mediaError: string | null;
+  /** Set when a peer could not be reached at all — usually a missing TURN relay. */
+  connectivityWarning: string | null;
   joinCall: () => Promise<void>;
   leaveCall: () => void;
   toggleAudio: () => void;
@@ -222,7 +231,28 @@ export function useStudyRoomMedia(
   const [hasVideoTrack, setHasVideoTrack] = useState(false);
   const [mediaError, setMediaError] = useState<string | null>(null);
 
+  const ice = useIceServers();
+  /**
+   * Set when a pair exhausts its ICE restarts, so the UI can explain *why* a
+   * call with a distant friend shows no audio instead of just sitting silent.
+   */
+  const [connectivityWarning, setConnectivityWarning] = useState<string | null>(null);
+
   const peersRef = useRef(new Map<string, PeerRecord>());
+  /**
+   * Set after `recoverPeer` is defined. A plain call would be circular —
+   * createPeer needs recovery, recovery needs offerTo, offerTo needs createPeer
+   * — and a ref breaks the cycle without re-creating every callback.
+   */
+  const recoverPeerRef = useRef<((socketId: string) => void) | null>(null);
+  /**
+   * Peers we have stopped trying to reach. Without this the reconcile loop
+   * would immediately rebuild a connection we just gave up on — with a fresh
+   * restart budget — and the "endless retry" this whole change exists to remove
+   * would come straight back, three seconds slower. Cleared when the peer
+   * leaves the call, so their next join gets a clean attempt.
+   */
+  const unreachablePeersRef = useRef(new Set<string>());
   // ICE candidates can arrive before the answer sets the remote description;
   // holding them here avoids dropping candidates and stalling the connection.
   const pendingCandidatesRef = useRef(new Map<string, RTCIceCandidateInit[]>());
@@ -278,8 +308,9 @@ export function useStudyRoomMedia(
       const existing = peersRef.current.get(peerSocketId);
       if (existing) return existing;
 
+      const { iceServers } = ice.current();
       const pc = new RTCPeerConnection({
-        iceServers: resolveIceServers(),
+        iceServers,
         // One transport for audio+video: a single ICE candidate set and, more
         // importantly, one TURN allocation instead of two — which directly
         // halves consumption of a metered free TURN quota.
@@ -311,11 +342,18 @@ export function useStudyRoomMedia(
         pc,
         audioSender: audioTx.sender,
         videoSender: videoTx.sender,
+        iceRestarts: 0,
+        sawRelayCandidate: false,
       };
       peersRef.current.set(peerSocketId, record);
 
       pc.onicecandidate = (event) => {
         if (!event.candidate || !roomId) return;
+        // " typ relay" is the TURN-allocated candidate. Its absence on a failed
+        // connection is the single most diagnostic fact available to us.
+        if (event.candidate.candidate.includes(" typ relay")) {
+          record.sawRelayCandidate = true;
+        }
         socketRef.current?.emit(StudyRoomClientEvent.SIGNAL, {
           roomId,
           targetSocketId: peerSocketId,
@@ -339,15 +377,38 @@ export function useStudyRoomMedia(
         });
       };
 
+      // `failed` used to drop the peer outright, which — combined with the
+      // reconcile loop recreating it three seconds later — turned one failure
+      // into an endless rebuild cycle that could never succeed, because every
+      // rebuild restarted ICE gathering from scratch. Recovery is now an ICE
+      // restart on the existing connection, and only a peer that cannot be
+      // recovered is dropped.
       pc.onconnectionstatechange = () => {
-        if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-          dropPeer(peerSocketId);
+        const state = pc.connectionState;
+
+        if (state === "connected") {
+          record.iceRestarts = 0;
+          record.disconnectedAt = undefined;
+          setConnectivityWarning(null);
+          return;
         }
+
+        if (state === "disconnected") {
+          record.disconnectedAt = Date.now();
+          return;
+        }
+
+        if (state === "failed") {
+          recoverPeerRef.current?.(peerSocketId);
+          return;
+        }
+
+        if (state === "closed") dropPeer(peerSocketId);
       };
 
       return record;
     },
-    [dropPeer, roomId, socketRef],
+    [dropPeer, ice, roomId, socketRef],
   );
 
   const flushPendingCandidates = useCallback(async (socketId: string, pc: RTCPeerConnection) => {
@@ -383,7 +444,7 @@ export function useStudyRoomMedia(
   );
 
   const offerTo = useCallback(
-    async (peerSocketId: string) => {
+    async (peerSocketId: string, options?: { iceRestart: boolean }) => {
       if (!roomId) return;
       const record = createPeer(peerSocketId);
       const { pc } = record;
@@ -392,7 +453,10 @@ export function useStudyRoomMedia(
       if (pc.signalingState !== "stable") return;
 
       try {
-        const offer = await pc.createOffer();
+        // `iceRestart` makes the browser gather a completely new candidate set
+        // (new ufrag/pwd, new TURN allocation) while keeping the tracks,
+        // transceivers and encoder settings already negotiated.
+        const offer = await pc.createOffer(options?.iceRestart ? { iceRestart: true } : undefined);
         // createOffer awaited; make sure nothing negotiated underneath us.
         if (pc.signalingState !== "stable") return;
         await pc.setLocalDescription(offer);
@@ -411,6 +475,59 @@ export function useStudyRoomMedia(
     },
     [createPeer, dropPeer, roomId, socketRef],
   );
+
+  /**
+   * What to do when a pair's connection fails.
+   *
+   * The two students hitting this are on different home ISPs, both behind
+   * carrier-grade NAT. A symmetric NAT gives every destination a different
+   * source port, so the address STUN discovers is worthless to the far side and
+   * no direct candidate pair ever validates — the connection just fails. The
+   * only path that works is a TURN relay, so if none was configured there is
+   * nothing to retry and the honest thing is to say so.
+   */
+  const recoverPeer = useCallback(
+    (peerSocketId: string) => {
+      const record = peersRef.current.get(peerSocketId);
+      if (!record || !inCallRef.current) return;
+
+      const { turnConfigured } = ice.current();
+
+      if (record.iceRestarts < MAX_ICE_RESTARTS) {
+        record.iceRestarts += 1;
+        record.disconnectedAt = undefined;
+        // Only the designated initiator re-offers, for the same reason it is
+        // the only one that offers in the first place: two simultaneous restart
+        // offers would collide in `have-local-offer` and kill the pair.
+        if (shouldInitiateTo(peerSocketId)) {
+          void offerTo(peerSocketId, { iceRestart: true });
+        }
+        return;
+      }
+
+      const name =
+        participantsRef.current.find((p) => p.socketId === peerSocketId)?.fullName ?? "a participant";
+
+      setConnectivityWarning(
+        turnConfigured
+          ? `Could not reach ${name}. Both of you can talk to the server, but not to each other — a firewall or mobile network is blocking the media relay.`
+          : `Could not reach ${name}. You are on different networks and this room has no TURN relay configured, so your devices cannot connect directly. An admin needs to set TURN_URLS on the server.`,
+      );
+
+      if (!record.sawRelayCandidate && turnConfigured) {
+        console.warn(
+          `[study-room] No relay candidate was gathered for ${peerSocketId} even though ` +
+            "TURN is configured — the TURN server is probably rejecting the credentials " +
+            "or is unreachable on the configured ports.",
+        );
+      }
+
+      unreachablePeersRef.current.add(peerSocketId);
+      dropPeer(peerSocketId);
+    },
+    [dropPeer, ice, offerTo, shouldInitiateTo],
+  );
+  recoverPeerRef.current = recoverPeer;
 
   /**
    * Brings the mesh back in line with who is actually on the call.
@@ -435,9 +552,14 @@ export function useStudyRoomMedia(
     for (const socketId of [...peersRef.current.keys()]) {
       if (!onCall.has(socketId)) dropPeer(socketId);
     }
+    // Leaving the call is what earns a peer a second chance.
+    for (const socketId of [...unreachablePeersRef.current]) {
+      if (!onCall.has(socketId)) unreachablePeersRef.current.delete(socketId);
+    }
 
     for (const peerSocketId of onCall) {
       if (peerSocketId === selfId) continue;
+      if (unreachablePeersRef.current.has(peerSocketId)) continue;
 
       const record = peersRef.current.get(peerSocketId);
       if (record) {
@@ -447,8 +569,22 @@ export function useStudyRoomMedia(
           record.offerSentAt !== undefined &&
           Date.now() - record.offerSentAt > OFFER_TIMEOUT_MS;
 
-        // A failed connection, or an offer nobody ever answered, is rebuilt.
-        if (state === "failed" || state === "closed" || stalled) {
+        // A connection that has been `disconnected` past the grace period is
+        // not going to recover on its own; give it fresh candidates rather than
+        // waiting for the browser to declare `failed`, which can take ~15s.
+        const stuckDisconnected =
+          state === "disconnected" &&
+          record.disconnectedAt !== undefined &&
+          Date.now() - record.disconnectedAt > DISCONNECTED_GRACE_MS;
+
+        if (state === "failed" || stuckDisconnected) {
+          recoverPeerRef.current?.(peerSocketId);
+          continue;
+        }
+
+        // An offer nobody ever answered means signalling was lost, not the
+        // media path — that one really does want a clean rebuild.
+        if (state === "closed" || stalled) {
           dropPeer(peerSocketId);
         } else {
           continue;
@@ -478,6 +614,10 @@ export function useStudyRoomMedia(
           // to answer with. The sender's reconcile pass will re-offer, so a
           // dropped offer here is recoverable rather than terminal.
           if (!inCallRef.current) return;
+
+          // They are still trying, so we stop treating them as unreachable —
+          // their network may have recovered even if ours gave up.
+          unreachablePeersRef.current.delete(from);
 
           const pending = peersRef.current.get(from);
           if (pending && pending.pc.signalingState === "have-local-offer") {
@@ -579,6 +719,15 @@ export function useStudyRoomMedia(
 
     setIsStarting(true);
     setMediaError(null);
+    setConnectivityWarning(null);
+    unreachablePeersRef.current.clear();
+
+    // Load ICE servers *before* the first peer connection is built. TURN
+    // credentials are minted per session by the backend, and a peer connection
+    // created without them can never gather a relay candidate — no amount of
+    // later retrying fixes a connection that was constructed with the wrong
+    // configuration.
+    await ice.load();
 
     // Audio only. Camera is opt-in via toggleVideo, which is what keeps a
     // 4-person room at ~96 kbps upstream instead of megabits.
@@ -621,7 +770,7 @@ export function useStudyRoomMedia(
     ensureMesh();
 
     applyAllSenderParams();
-  }, [applyAllSenderParams, emitMediaState, ensureMesh, isStarting, roomId]);
+  }, [applyAllSenderParams, emitMediaState, ensureMesh, ice, isStarting, roomId]);
 
   // Reconcile whenever the roster changes: somebody joining or leaving the call
   // is exactly when a link needs creating or tearing down. This is what the old
@@ -650,6 +799,7 @@ export function useStudyRoomMedia(
     peersRef.current.forEach((_, socketId) => dropPeer(socketId));
     peersRef.current.clear();
     pendingCandidatesRef.current.clear();
+    unreachablePeersRef.current.clear();
 
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
     localStreamRef.current = null;
@@ -661,6 +811,7 @@ export function useStudyRoomMedia(
     setHasVideoTrack(false);
     setVideoEnabled(false);
     setScreenEnabled(false);
+    setConnectivityWarning(null);
 
     emitMediaState({
       inCall: false,
@@ -855,6 +1006,7 @@ export function useStudyRoomMedia(
     screenEnabled,
     hasVideoTrack,
     mediaError,
+    connectivityWarning,
     joinCall,
     leaveCall,
     toggleAudio,

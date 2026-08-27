@@ -31,6 +31,7 @@ export function CallPanel({
     audioEnabled,
     videoEnabled,
     mediaError,
+    connectivityWarning,
     joinCall,
     leaveCall,
     toggleAudio,
@@ -96,6 +97,15 @@ export function CallPanel({
       </div>
 
       {mediaError && <p className="text-xs text-warning">{mediaError}</p>}
+
+      {/* A call that connects to nobody used to look identical to a quiet room.
+          This is the difference between "my friend is muted" and "our two
+          networks cannot reach each other". */}
+      {connectivityWarning && (
+        <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-warning">
+          {connectivityWarning}
+        </p>
+      )}
 
       {inCall && (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
