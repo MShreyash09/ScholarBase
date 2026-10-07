@@ -1,4 +1,4 @@
-# ScholarBase
+# ScholarBase MMCOE
 
 Previous-year question papers, notes, live study rooms, and an AI Q&A assistant for an
 autonomous university. Fully open-source stack: PostgreSQL + pgvector, MinIO, Redis (from
